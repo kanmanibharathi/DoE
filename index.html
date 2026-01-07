@@ -14,11 +14,12 @@
     <!-- html2canvas for Export -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <style>
-                :root {
+        :root {
             --primary: #00a651;
             --secondary: #008c44;
             --accent: #2ecc71;
-            --bg: #1f2122; /* Darker background from reference implied theme */
+            --bg: #1f2122;
+            /* Darker background from reference implied theme */
             --card-bg: rgba(255, 255, 255, 0.05);
             --text: #ffffff;
             --text-dim: #cccccc;
@@ -45,7 +46,7 @@
         }
 
         .container {
-            max-width: 1200px;
+            max-width: 1400px;
             margin: 0 auto;
             padding: 2rem;
         }
@@ -73,12 +74,12 @@
 
         .main-grid {
             display: grid;
-            grid-template-columns: 350px 1fr;
+            grid-template-columns: 400px 1fr;
             gap: 2rem;
             align-items: start;
         }
 
-        @media (max-width: 968px) {
+        @media (max-width: 1100px) {
             .main-grid {
                 grid-template-columns: 1fr;
             }
@@ -449,7 +450,8 @@
             background: var(--primary);
             border-radius: 2px;
         }
-            /* Dropdown Options Styling */
+
+        /* Dropdown Options Styling */
         option {
             background-color: #333333;
             color: #ffffff;

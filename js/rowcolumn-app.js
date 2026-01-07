@@ -2,27 +2,47 @@
  * Row-Column Design Generator Logic
  * Implements a heuristic randomization approach for resolvable Row-Column designs.
  */
+'use strict';
 
 class RowColumnGenerator {
     constructor() {
         this.initEventListeners();
         this.mulberry = null;
+        this.currentDesign = null;
+        this.fieldBookData = null;
     }
 
     initEventListeners() {
-        document.getElementById('generate-btn').addEventListener('click', () => this.generate());
-        document.getElementById('export-btn').addEventListener('click', () => this.exportCSV());
-//         document.getElementById('copy-btn').addEventListener('click', () => this.copyToClipboard());
-//         document.getElementById('download-map-btn').addEventListener('click', () => this.downloadMap());
-// 
-//         document.querySelectorAll('.tab').forEach(tab => {
-//             tab.addEventListener('click', (e) => {
-//                 document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-//                 document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-//                 e.target.classList.add('active');
-//                 document.getElementById(e.target.dataset.tab).classList.add('active');
-//             });
-        });
+        const genBtn = document.getElementById('generate-btn');
+        const expBtn = document.getElementById('export-btn');
+
+        if (genBtn) {
+            genBtn.addEventListener('click', () => {
+                try {
+                    this.generate();
+                } catch (e) {
+                    console.error(e);
+                    alert("Error: " + e.message);
+                }
+            });
+        }
+        if (expBtn) {
+            expBtn.addEventListener('click', () => this.exportCSV());
+        }
+
+        const tabs = document.querySelectorAll('.tab');
+        if (tabs) {
+            tabs.forEach(tab => {
+                tab.addEventListener('click', () => {
+                    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                    tab.classList.add('active');
+                    const targetId = tab.getAttribute('data-tab');
+                    const content = document.getElementById(targetId);
+                    if (content) content.classList.add('active');
+                });
+            });
+        }
     }
 
     mulberry32(a) {
@@ -43,13 +63,25 @@ class RowColumnGenerator {
     }
 
     generate() {
-        const t = parseInt(document.getElementById('t-input').value);
-        const rowsPerRep = parseInt(document.getElementById('rows-input').value);
-        const r = parseInt(document.getElementById('reps-input').value);
-        const lCount = parseInt(document.getElementById('loc-input').value);
-        const iterations = parseInt(document.getElementById('iter-input').value);
-        const startPlot = parseInt(document.getElementById('plot-input').value);
-        let seed = parseInt(document.getElementById('seed-input').value);
+        const tInput = document.getElementById('t-input');
+        const rowsInput = document.getElementById('rows-input');
+        const repsInput = document.getElementById('reps-input');
+        const locInput = document.getElementById('loc-input');
+        const iterInput = document.getElementById('iter-input');
+        const plotInput = document.getElementById('plot-input');
+        const seedInput = document.getElementById('seed-input');
+        const trtNamesInput = document.getElementById('trt-names');
+
+        if (!tInput || !rowsInput || !repsInput) return;
+
+        const t = parseInt(tInput.value);
+        const rowsPerRep = parseInt(rowsInput.value);
+        const r = parseInt(repsInput.value);
+        const lCount = parseInt(locInput.value);
+        const iterations = parseInt(iterInput.value);
+        const startPlot = parseInt(plotInput.value);
+        const rawSeed = seedInput.value;
+        let seed = (rawSeed !== "" && rawSeed !== null) ? parseInt(rawSeed) : Math.floor(Math.random() * 999999);
 
         if (t % rowsPerRep !== 0) {
             alert(`Number of treatments (${t}) must be divisible by the number of rows (${rowsPerRep}).`);
@@ -60,7 +92,7 @@ class RowColumnGenerator {
         if (isNaN(seed)) seed = Math.floor(Math.random() * 999999);
         this.mulberry = this.mulberry32(seed);
 
-        const trtNamesRaw = document.getElementById('trt-names').value.split('\n').filter(x => x.trim() !== '');
+        const trtNamesRaw = trtNamesInput ? trtNamesInput.value.split('\n').filter(x => x.trim() !== '') : [];
         const treatments = [];
         for (let i = 1; i <= t; i++) {
             treatments.push({
@@ -73,22 +105,15 @@ class RowColumnGenerator {
         for (let loc = 1; loc <= lCount; loc++) {
             const locReps = [];
             for (let repNum = 1; repNum <= r; repNum++) {
-                // Initialize replicate with a random shuffle
                 let repTrts = [...treatments];
                 this.shuffle(repTrts);
 
-                // Arrange into rows and columns
                 let grid = [];
                 for (let rIdx = 0; rIdx < rowsPerRep; rIdx++) {
                     grid.push(repTrts.slice(rIdx * colsPerRep, (rIdx + 1) * colsPerRep));
                 }
 
-                // Optimization Heuristic (Simple approach: Shuffle rows and columns multiple times)
-                // In a real RowCol design, we'd calculate A-Efficiency and swap.
-                // For this generator, we will perform row-wise and column-wise randomization
-                // to mimic the "Resolvable Row-Column" property.
                 for (let iter = 0; iter < iterations / 100; iter++) {
-                    // Randomly swap two elements in a column (maintaining resolvable property)
                     const c = Math.floor(this.mulberry() * colsPerRep);
                     const r1 = Math.floor(this.mulberry() * rowsPerRep);
                     const r2 = Math.floor(this.mulberry() * rowsPerRep);
@@ -108,99 +133,101 @@ class RowColumnGenerator {
     }
 
     render() {
+        if (!this.currentDesign) return;
         const { t, rowsPerRep, colsPerRep, r, lCount, startPlot, seed, locationsData } = this.currentDesign;
 
-        document.getElementById('info-rows').textContent = rowsPerRep;
-        document.getElementById('info-cols').textContent = colsPerRep;
-        document.getElementById('info-total').textContent = t * r * lCount;
+        if (document.getElementById('info-rows')) document.getElementById('info-rows').textContent = rowsPerRep;
+        if (document.getElementById('info-cols')) document.getElementById('info-cols').textContent = colsPerRep;
+        if (document.getElementById('info-total')) document.getElementById('info-total').textContent = t * r * lCount;
 
-        document.getElementById('results').style.display = 'block';
+        const results = document.getElementById('results');
+        if (results) results.style.display = 'block';
 
-        // Render Table
         const tbody = document.querySelector('#field-book-table tbody');
-        tbody.innerHTML = '';
-        const fieldBookRows = [];
+        if (tbody) {
+            tbody.innerHTML = '';
+            const fieldBookRows = [];
 
-        let globalId = 1;
-        locationsData.forEach((locReps, lIdx) => {
-            let locStartPlot = startPlot + (lIdx * 1000);
-            locReps.forEach((repGrid, rIdx) => {
-                const repId = rIdx + 1;
-                // Field orientation: Rows then Columns
-                repGrid.forEach((row, rowIdx) => {
-                    const rowNum = rowIdx + 1;
-                    row.forEach((trt, colIdx) => {
-                        const colNum = colIdx + 1;
-                        const plot = locStartPlot + (rIdx * t) + (rowIdx * colsPerRep) + colIdx;
+            let globalId = 1;
+            locationsData.forEach((locReps, lIdx) => {
+                let locStartPlot = startPlot + (lIdx * 1000);
+                locReps.forEach((repGrid, rIdx) => {
+                    const repId = rIdx + 1;
+                    repGrid.forEach((row, rowIdx) => {
+                        const rowNum = rowIdx + 1;
+                        row.forEach((trt, colIdx) => {
+                            const colNum = colIdx + 1;
+                            const plot = locStartPlot + (rIdx * t) + (rowIdx * colsPerRep) + colIdx;
 
-                        const tr = document.createElement('tr');
-                        tr.innerHTML = `
-                            <td>${globalId}</td>
-                            <td>Loc ${lIdx + 1}</td>
-                            <td>${plot}</td>
-                            <td>${repId}</td>
-                            <td>${rowNum}</td>
-                            <td>${colNum}</td>
-                            <td>${trt.entry}</td>
-                            <td>${trt.name}</td>
-                        `;
-                        tbody.appendChild(tr);
+                            const tr = document.createElement('tr');
+                            tr.innerHTML = `
+                                <td>${globalId}</td>
+                                <td>Loc ${lIdx + 1}</td>
+                                <td>${plot}</td>
+                                <td>${repId}</td>
+                                <td>${rowNum}</td>
+                                <td>${colNum}</td>
+                                <td>${trt.entry}</td>
+                                <td>${trt.name}</td>
+                            `;
+                            tbody.appendChild(tr);
 
-                        fieldBookRows.push({
-                            id: globalId++,
-                            location: lIdx + 1,
-                            plot: plot,
-                            rep: repId,
-                            row: rowNum,
-                            column: colNum,
-                            entry: trt.entry,
-                            name: trt.name
+                            fieldBookRows.push({
+                                id: globalId++,
+                                location: lIdx + 1,
+                                plot: plot,
+                                rep: repId,
+                                row: rowNum,
+                                column: colNum,
+                                entry: trt.entry,
+                                name: trt.name
+                            });
                         });
                     });
                 });
             });
-        });
+            this.fieldBookData = fieldBookRows;
+        }
 
-        this.fieldBookData = fieldBookRows;
-
-        // Render Map
         const mapContainer = document.getElementById('map-container');
-        mapContainer.innerHTML = '';
+        if (mapContainer) {
+            mapContainer.innerHTML = '';
 
-        locationsData.forEach((locReps, lIdx) => {
-            const locHeader = document.createElement('h3');
-            locHeader.style.margin = '2rem 0 1rem';
-            locHeader.style.color = 'var(--text-dim)';
-            locHeader.textContent = `Location ${lIdx + 1}`;
-            mapContainer.appendChild(locHeader);
+            locationsData.forEach((locReps, lIdx) => {
+                const locHeader = document.createElement('h3');
+                locHeader.style.margin = '2rem 0 1rem';
+                locHeader.style.color = 'var(--text-dim)';
+                locHeader.textContent = `Location ${lIdx + 1}`;
+                mapContainer.appendChild(locHeader);
 
-            locReps.forEach((repGrid, rIdx) => {
-                const repDiv = document.createElement('div');
-                repDiv.className = 'replicate-group';
-                repDiv.innerHTML = `<div class="replicate-title">Replicate ${rIdx + 1}</div>`;
+                locReps.forEach((repGrid, rIdx) => {
+                    const repDiv = document.createElement('div');
+                    repDiv.className = 'replicate-group';
+                    repDiv.innerHTML = `<div class="replicate-title">Replicate ${rIdx + 1}</div>`;
 
-                const grid = document.createElement('div');
-                grid.className = 'matrix-grid';
-                grid.style.gridTemplateColumns = `repeat(${colsPerRep}, 1fr)`;
+                    const grid = document.createElement('div');
+                    grid.className = 'matrix-grid';
+                    grid.style.gridTemplateColumns = `repeat(${colsPerRep}, 1fr)`;
 
-                let locStartPlot = startPlot + (lIdx * 1000);
-                repGrid.forEach((row, rowIdx) => {
-                    row.forEach((trt, colIdx) => {
-                        const plot = locStartPlot + (rIdx * t) + (rowIdx * colsPerRep) + colIdx;
-                        const cell = document.createElement('div');
-                        cell.className = 'cell';
-                        cell.innerHTML = `
-                            <div class="cell-plot">${plot}</div>
-                            <div class="trt-name">${trt.name}</div>
-                        `;
-                        grid.appendChild(cell);
+                    let locStartPlot = startPlot + (lIdx * 1000);
+                    repGrid.forEach((row, rowIdx) => {
+                        row.forEach((trt, colIdx) => {
+                            const plot = locStartPlot + (rIdx * t) + (rowIdx * colsPerRep) + colIdx;
+                            const cell = document.createElement('div');
+                            cell.className = 'cell';
+                            cell.innerHTML = `
+                                <div class="cell-plot">${plot}</div>
+                                <div class="trt-name">${trt.name}</div>
+                            `;
+                            grid.appendChild(cell);
+                        });
                     });
-                });
 
-                repDiv.appendChild(grid);
-                mapContainer.appendChild(repDiv);
+                    repDiv.appendChild(grid);
+                    mapContainer.appendChild(repDiv);
+                });
             });
-        });
+        }
     }
 
     exportCSV() {
@@ -216,31 +243,14 @@ class RowColumnGenerator {
         a.download = 'RowColumn_FieldBook.csv';
         a.click();
     }
-
-    copyToClipboard() {
-        if (!this.fieldBookData) return;
-        let text = 'Plot\tRep\tRow\tCol\tEntry\tName\n';
-        this.fieldBookData.forEach(row => {
-            text += `${row.plot}\t${row.rep}\t${row.row}\t${row.column}\t${row.entry}\t${row.name}\n`;
-        });
-        navigator.clipboard.writeText(text).then(() => alert('Copied to clipboard!'));
-    }
-
-    downloadMap() {
-        const container = document.getElementById('map-container');
-        html2canvas(container, {
-            backgroundColor: '#1e293b',
-            scale: 2,
-            padding: 20
-        }).then(canvas => {
-            const link = document.createElement('a');
-            link.download = 'RowColumn_FieldMap.png';
-            link.href = canvas.toDataURL();
-            link.click();
-        });
-    }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    window.app = new RowColumnGenerator();
+    try {
+        if (document.getElementById('generate-btn')) {
+            window.app = new RowColumnGenerator();
+        }
+    } catch (e) {
+        console.error("Row Column Init Error", e);
+    }
 });

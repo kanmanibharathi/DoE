@@ -2,6 +2,7 @@
  * Full Factorial Design Logic
  * Handles N factors, Combinations, and RCBD/CRD Randomization
  */
+'use strict';
 
 class FactorialGenerator {
     constructor(factors, reps, locations, type = 'RCBD', seed = null) {
@@ -9,7 +10,8 @@ class FactorialGenerator {
         this.reps = parseInt(reps);
         this.L = parseInt(locations);
         this.type = type; // RCBD (2) or CRD (1)
-        this.seed = seed || Math.floor(Math.random() * 1000000);
+        // Correct seed handling: permit 0, otherwise random
+        this.seed = (seed !== null && seed !== undefined && !isNaN(seed)) ? seed : Math.floor(Math.random() * 1000000);
 
         this.combinations = [];
         this.fieldBook = [];
@@ -33,13 +35,17 @@ class FactorialGenerator {
     }
 
     generateCombinations() {
+        if (!this.factors || this.factors.length === 0) return [];
+
         const result = [[]];
         this.factors.forEach(factor => {
             const temp = [];
             result.forEach(combination => {
-                factor.levels.forEach(level => {
-                    temp.push([...combination, { factorName: factor.name, level: level }]);
-                });
+                if (factor.levels && factor.levels.length > 0) {
+                    factor.levels.forEach(level => {
+                        temp.push([...combination, { factorName: factor.name, level: level }]);
+                    });
+                }
             });
             result.length = 0;
             result.push(...temp);
@@ -52,6 +58,8 @@ class FactorialGenerator {
         const random = this.mulberry32(this.seed);
         this.generateCombinations();
         this.fieldBook = [];
+
+        if (this.combinations.length === 0) return [];
 
         for (let loc = 1; loc <= this.L; loc++) {
             let plotNum = startPlot + (loc - 1) * 1000;
@@ -107,15 +115,20 @@ document.addEventListener('DOMContentLoaded', () => {
         const fbTable = document.querySelector('#fb-table tbody');
         const fbHeader = document.getElementById('fb-header');
 
-        if (!factorsContainer || !addFactorBtn) {
-            console.error("Critical elements missing");
-            return;
+        // Critical elements check
+        if (!factorsContainer || !addFactorBtn || !generateBtn) {
+            console.warn("Critical elements missing from page, Factorial App not initializing fully.");
+            // We return early only if essential generators parts are missing.
+            // If just output containers are missing, we might want to log it but not crash.
+            if (!generateBtn) return;
         }
 
         let currentGenerator = null;
         let selectedLoc = "Loc1";
 
         function addFactorUI(name = '', levels = '') {
+            if (!factorsContainer) return;
+
             const div = document.createElement('div');
             div.className = 'factor-item';
             div.innerHTML = `
@@ -143,64 +156,88 @@ document.addEventListener('DOMContentLoaded', () => {
             factorsContainer.appendChild(div);
         }
 
-        // Initialize with default factors
-        addFactorUI('Factor A', 'a1, a2');
-        addFactorUI('Factor B', 'b1, b2, b3');
+        // Initialize with default factors if container exists
+        if (factorsContainer) {
+            addFactorUI('Factor A', 'a1, a2');
+            addFactorUI('Factor B', 'b1, b2, b3');
+        }
 
         // Event Listeners
-        addFactorBtn.addEventListener('click', (e) => {
-            e.preventDefault(); // Safety
-            addFactorUI();
-        });
-
-        generateBtn.addEventListener('click', () => {
-            const factorElements = document.querySelectorAll('.factor-item');
-            const factors = [];
-            factorElements.forEach(el => {
-                const nameInput = el.querySelector('.factor-name');
-                const levelsInput = el.querySelector('.factor-levels');
-
-                const name = nameInput ? (nameInput.value || 'Factor') : 'Factor';
-                const levels = levelsInput ? levelsInput.value.split(',').map(s => s.trim()).filter(s => s !== '') : [];
-
-                if (levels.length > 0) factors.push({ name, levels });
+        if (addFactorBtn) {
+            addFactorBtn.addEventListener('click', (e) => {
+                e.preventDefault(); // Safety
+                addFactorUI();
             });
+        }
 
-            if (factors.length < 2) {
-                alert('Please define at least 2 factors.');
-                return;
-            }
+        if (generateBtn) {
+            generateBtn.addEventListener('click', () => {
+                try {
+                    const factorElements = document.querySelectorAll('.factor-item');
+                    const factors = [];
+                    factorElements.forEach(el => {
+                        const nameInput = el.querySelector('.factor-name');
+                        const levelsInput = el.querySelector('.factor-levels');
 
-            const repsVal = document.getElementById('reps-input').value;
-            const locsVal = document.getElementById('locs-input').value;
-            const envType = document.getElementById('env-type');
-            const type = (envType && envType.value === '2') ? 'RCBD' : 'CRD';
-            const plotStartVal = document.getElementById('plot-start').value;
-            const seedVal = document.getElementById('seed-input').value;
+                        const name = nameInput ? (nameInput.value || 'Factor') : 'Factor';
+                        const levels = levelsInput ? levelsInput.value.split(',').map(s => s.trim()).filter(s => s !== '') : [];
 
-            const reps = parseInt(repsVal) || 3;
-            const locs = parseInt(locsVal) || 1;
-            const plotStart = parseInt(plotStartVal) || 101;
-            const seed = seedVal ? parseInt(seedVal) : null;
+                        if (levels.length > 0) factors.push({ name, levels });
+                    });
 
-            const generator = new FactorialGenerator(factors, reps, locs, type, seed);
-            generator.generate(plotStart);
-            currentGenerator = generator;
+                    if (factors.length < 2) {
+                        alert('Please define at least 2 factors.');
+                        return;
+                    }
 
-            // Stats
-            document.getElementById('stat-comb').textContent = generator.combinations.length;
-            document.getElementById('stat-total').textContent = generator.fieldBook.length;
-            document.getElementById('stat-type').textContent = type;
+                    const repsInput = document.getElementById('reps-input');
+                    const locsInput = document.getElementById('locs-input');
+                    const envType = document.getElementById('env-type');
+                    const plotStartInput = document.getElementById('plot-start');
+                    const seedInput = document.getElementById('seed-input');
 
-            renderLocPills(locs);
-            renderVisualMap("Loc1");
-            renderTable(generator);
+                    const repsVal = repsInput ? repsInput.value : 3;
+                    const locsVal = locsInput ? locsInput.value : 1;
+                    const type = (envType && envType.value === '2') ? 'RCBD' : 'CRD';
+                    const plotStartVal = plotStartInput ? plotStartInput.value : 101;
+                    const rawSeed = seedInput ? seedInput.value : "";
 
-            resultsSection.style.display = 'block';
-            resultsSection.scrollIntoView({ behavior: 'smooth' });
-        });
+                    const reps = parseInt(repsVal) || 3;
+                    const locs = parseInt(locsVal) || 1;
+                    const plotStart = parseInt(plotStartVal) || 101;
+                    const seed = (rawSeed !== "" && rawSeed !== null) ? parseInt(rawSeed) : null;
+
+                    const generator = new FactorialGenerator(factors, reps, locs, type, seed);
+                    generator.generate(plotStart);
+                    currentGenerator = generator;
+
+                    // Stats
+                    const statComb = document.getElementById('stat-comb');
+                    const statTotal = document.getElementById('stat-total');
+                    const statType = document.getElementById('stat-type');
+
+                    if (statComb) statComb.textContent = generator.combinations.length;
+                    if (statTotal) statTotal.textContent = generator.fieldBook.length;
+                    if (statType) statType.textContent = type;
+
+                    renderLocPills(locs);
+                    renderVisualMap("Loc1");
+                    renderTable(generator);
+
+                    if (resultsSection) {
+                        resultsSection.style.display = 'block';
+                        resultsSection.scrollIntoView({ behavior: 'smooth' });
+                    }
+
+                } catch (genError) {
+                    console.error("Generation Error:", genError);
+                    alert("Error generating design: " + genError.message);
+                }
+            });
+        }
 
         function renderLocPills(count) {
+            if (!locPills) return;
             locPills.innerHTML = '';
             for (let i = 1; i <= count; i++) {
                 const pill = document.createElement('div');
@@ -216,6 +253,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         function renderVisualMap(locName) {
+            if (!blocksContainer || !currentGenerator) return;
+
             selectedLoc = locName;
             blocksContainer.innerHTML = '';
             const data = currentGenerator.fieldBook.filter(r => r.location === locName);
@@ -224,11 +263,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 for (let r = 1; r <= currentGenerator.reps; r++) {
                     const blockDiv = document.createElement('div');
                     blockDiv.className = 'block-unit';
-                    blockDiv.innerHTML = `<div class="block-title">Block (Rep) ${r}</div>`;
+                    blockDiv.innerHTML = `<div class="block-title">Block (Rep) ${r} <span style="font-weight:normal;opacity:0.7">(${locName})</span></div>`;
                     const grid = document.createElement('div');
                     grid.className = 'plots-grid';
 
-                    data.filter(d => d.rep === r).forEach(plot => {
+                    const repData = data.filter(d => d.rep === r);
+                    // Sort by plot number for visual consistency
+                    repData.sort((a, b) => a.plot - b.plot);
+
+                    repData.forEach(plot => {
                         grid.innerHTML += `
                             <div class="plot-card">
                                 <div class="p-num">Plot ${plot.plot}</div>
@@ -242,9 +285,13 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
                 const blockDiv = document.createElement('div');
                 blockDiv.className = 'block-unit';
-                blockDiv.innerHTML = `<div class="block-title">Completely Randomized Design</div>`;
+                blockDiv.innerHTML = `<div class="block-title">Completely Randomized Design <span style="font-weight:normal;opacity:0.7">(${locName})</span></div>`;
                 const grid = document.createElement('div');
                 grid.className = 'plots-grid';
+
+                // Sort by plot number
+                data.sort((a, b) => a.plot - b.plot);
+
                 data.forEach(plot => {
                     grid.innerHTML += `
                         <div class="plot-card">
@@ -259,6 +306,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         function renderTable(gen) {
+            if (!fbHeader || !fbTable) return;
+
             fbHeader.innerHTML = '<th>ID</th><th>Location</th><th>Plot</th><th>Rep</th>';
             gen.factors.forEach(f => {
                 fbHeader.innerHTML += `<th>${f.name}</th>`;
@@ -284,7 +333,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
                 document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
                 tab.classList.add('active');
-                document.getElementById(tab.dataset.tab).classList.add('active');
+                const target = document.getElementById(tab.dataset.tab);
+                if (target) target.classList.add('active');
             };
         });
 
@@ -312,21 +362,38 @@ document.addEventListener('DOMContentLoaded', () => {
         if (dlMapBtn) {
             dlMapBtn.onclick = () => {
                 const container = document.getElementById('map-capture');
-                if (typeof html2canvas === 'function') {
-                    html2canvas(container, { backgroundColor: "#1f2122", scale: 3 }).then(canvas => {
+                if (typeof html2canvas === 'function' && container) {
+                    const btn = dlMapBtn;
+                    const oldText = btn.innerHTML;
+                    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Rendering...';
+                    btn.disabled = true;
+
+                    html2canvas(container, {
+                        backgroundColor: "#1f2122",
+                        scale: 3,
+                        logging: false
+                    }).then(canvas => {
                         const a = document.createElement('a');
                         a.download = `factorial_${selectedLoc}_map.png`;
                         a.href = canvas.toDataURL();
                         a.click();
+
+                        btn.innerHTML = oldText;
+                        btn.disabled = false;
+                    }).catch(err => {
+                        console.error("Map export error:", err);
+                        alert("Error exporting map.");
+                        btn.innerHTML = oldText;
+                        btn.disabled = false;
                     });
                 } else {
-                    alert('Image export library not loaded.');
+                    alert('Image export library not loaded or map container missing.');
                 }
             };
         }
 
     } catch (error) {
-        console.error("Factorial App Error:", error);
+        console.error("Factorial App Initialization Error:", error);
         alert("An error occurred initializing the application. Please refresh.");
     }
 });

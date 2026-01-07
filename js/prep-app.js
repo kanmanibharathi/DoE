@@ -1,6 +1,7 @@
 /**
  * Spatial Partially Replicated (P-Rep) Design Logic
  */
+'use strict';
 
 class PRepGenerator {
     constructor(rows, cols, groups, planter = 'serpentine', seed = null) {
@@ -8,10 +9,13 @@ class PRepGenerator {
         this.cols = parseInt(cols);
         this.groups = groups; // Array of {gens, units}
         this.planter = planter;
-        this.seed = seed || Math.floor(Math.random() * 1000000);
+
+        let s = seed;
+        this.seed = (s !== null && s !== undefined && !isNaN(s)) ? parseInt(s) : Math.floor(Math.random() * 1000000);
 
         this.matrix = []; // [row][col] containing {id, name, type}
         this.fieldBook = [];
+        this.score = 0;
     }
 
     mulberry32(a) {
@@ -102,7 +106,6 @@ class PRepGenerator {
         let flatMatrix = [...allUnits];
 
         // 3. Simple Optimization (Hill Climbing / Swap)
-        let currentIter = 0;
         const maxIter = 1000; // Heuristic iterations
 
         let matrix2D = [];
@@ -141,10 +144,10 @@ class PRepGenerator {
         this.fieldBook = [];
         let plotNum = startPlot;
         for (let r = 0; r < this.rows; r++) {
-            let cols = Array.from({ length: this.cols }, (_, i) => i);
-            if (this.planter === 'serpentine' && r % 2 !== 0) cols.reverse();
+            let colsIter = Array.from({ length: this.cols }, (_, i) => i);
+            if (this.planter === 'serpentine' && r % 2 !== 0) colsIter.reverse();
 
-            cols.forEach(c => {
+            colsIter.forEach(c => {
                 const item = this.matrix[r][c];
                 this.fieldBook.push({
                     plot: plotNum++,
@@ -164,143 +167,185 @@ class PRepGenerator {
 
 // UI Controller
 document.addEventListener('DOMContentLoaded', () => {
-    const repsContainer = document.getElementById('reps-container');
-    const addRepBtn = document.getElementById('add-rep-btn');
-    const generateBtn = document.getElementById('generate-btn');
-    const resultsSection = document.getElementById('results');
-    const gridContainer = document.getElementById('grid-container');
-    const fbTableBody = document.querySelector('#fb-table tbody');
-    const tabs = document.querySelectorAll('.tab');
+    try {
+        const repsContainer = document.getElementById('reps-container');
+        const addRepBtn = document.getElementById('add-rep-btn');
+        const generateBtn = document.getElementById('generate-btn');
+        const resultsSection = document.getElementById('results');
+        const gridContainer = document.getElementById('grid-container');
+        const fbTableBody = document.querySelector('#fb-table tbody');
+        const tabs = document.querySelectorAll('.tab');
+        const seedInputEl = document.getElementById('seed-input');
+        const exportCsvBtn = document.getElementById('export-csv');
+        const downloadPngBtn = document.getElementById('download-png');
 
-    let currentGenerator = null;
+        let currentGenerator = null;
 
-    addRepBtn.addEventListener('click', () => {
-        const div = document.createElement('div');
-        div.className = 'rep-entry-row';
-        div.innerHTML = `
-            <div>
-                <label>Genotypes</label>
-                <input type="number" class="rep-gens" value="10">
-            </div>
-            <div>
-                <label>Reps/Gen</label>
-                <input type="number" class="rep-units" value="3">
-            </div>
-            <div class="remove-btn"><i class="fas fa-trash"></i></div>
-        `;
-        div.querySelector('.remove-btn').onclick = () => div.remove();
-        repsContainer.appendChild(div);
-    });
-
-    generateBtn.addEventListener('click', () => {
-        const rows = document.getElementById('rows-input').value;
-        const cols = document.getElementById('cols-input').value;
-        const planter = document.getElementById('planter-input').value;
-        const seedInput = document.getElementById('seed-input').value;
-        const seed = seedInput ? parseInt(seedInput) : Math.floor(Math.random() * 1000000);
-
-        const groups = [];
-        document.querySelectorAll('.rep-entry-row').forEach(row => {
-            const gens = parseInt(row.querySelector('.rep-gens').value);
-            const units = parseInt(row.querySelector('.rep-units').value);
-            if (gens > 0 && units > 0) groups.push({ gens, units });
-        });
-
-        try {
-            const gen = new PRepGenerator(rows, cols, groups, planter, seed);
-            gen.generate();
-            currentGenerator = gen;
-
-            // Stats
-            document.getElementById('stat-total').textContent = rows * cols;
-            const repUnitsAll = groups.filter(g => g.units > 1).reduce((a, b) => a + b.gens * b.units, 0);
-            document.getElementById('stat-rep-perc').textContent = `${((repUnitsAll / (rows * cols)) * 100).toFixed(1)}%`;
-            document.getElementById('stat-dist').textContent = gen.score.toFixed(2);
-
-            renderGrid(gen);
-            renderTable(gen.fieldBook);
-
-            resultsSection.style.display = 'block';
-            resultsSection.scrollIntoView({ behavior: 'smooth' });
-
-        } catch (e) {
-            alert(e.message);
-        }
-    });
-
-    function renderGrid(gen) {
-        gridContainer.innerHTML = '';
-        gridContainer.style.gridTemplateColumns = `repeat(${gen.cols}, 42px)`;
-
-        // Render Row 1 at bottom for spatial consistency
-        for (let r = gen.rows - 1; r >= 0; r--) {
-            for (let c = 0; c < gen.cols; c++) {
-                const item = gen.matrix[r][c];
-                const cell = document.createElement('div');
-                const typeClass = item.type.includes('rep') ? (parseInt(item.type.replace('rep', '')) > 3 ? 'repX' : item.type) : 'unrep';
-                cell.className = `cell ${typeClass}`;
-                if (item.id === 0) cell.classList.add('filler');
-
-                const fbEntry = gen.fieldBook.find(fb => fb.row === r + 1 && fb.col === c + 1);
-                cell.innerHTML = `
-                    <div class="p-num">${fbEntry.plot}</div>
-                    ${item.id !== 0 ? item.id : ''}
+        if (addRepBtn && repsContainer) {
+            addRepBtn.addEventListener('click', () => {
+                const div = document.createElement('div');
+                div.className = 'rep-entry-row';
+                div.innerHTML = `
+                    <div>
+                        <label>Genotypes</label>
+                        <input type="number" class="rep-gens" value="10">
+                    </div>
+                    <div>
+                        <label>Reps/Gen</label>
+                        <input type="number" class="rep-units" value="3">
+                    </div>
+                    <div class="remove-btn"><i class="fas fa-trash"></i></div>
                 `;
-                cell.title = `${item.name} | Plot ${fbEntry.plot} (R${r + 1} C${c + 1})`;
-                gridContainer.appendChild(cell);
+                div.querySelector('.remove-btn').onclick = () => div.remove();
+                repsContainer.appendChild(div);
+            });
+        }
+
+        if (generateBtn) {
+            generateBtn.addEventListener('click', () => {
+                try {
+                    const rowsEl = document.getElementById('rows-input');
+                    const colsEl = document.getElementById('cols-input');
+                    const planterEl = document.getElementById('planter-input');
+
+                    if (!rowsEl || !colsEl) return;
+
+                    const rows = rowsEl.value;
+                    const cols = colsEl.value;
+                    const planter = planterEl.value;
+                    const seedVal = seedInputEl ? seedInputEl.value : null;
+
+                    const groups = [];
+                    document.querySelectorAll('.rep-entry-row').forEach(row => {
+                        const gensInput = row.querySelector('.rep-gens');
+                        const unitsInput = row.querySelector('.rep-units');
+                        if (gensInput && unitsInput) {
+                            const gens = parseInt(gensInput.value);
+                            const units = parseInt(unitsInput.value);
+                            if (gens > 0 && units > 0) groups.push({ gens, units });
+                        }
+                    });
+
+                    if (groups.length === 0) {
+                        alert("Please add at least one group of genotypes.");
+                        return;
+                    }
+
+                    const gen = new PRepGenerator(rows, cols, groups, planter, seedVal);
+                    gen.generate();
+                    currentGenerator = gen;
+
+                    // Stats
+                    if (document.getElementById('stat-total')) document.getElementById('stat-total').textContent = rows * cols;
+
+                    const repUnitsAll = groups.filter(g => g.units > 1).reduce((a, b) => a + b.gens * b.units, 0);
+                    if (document.getElementById('stat-rep-perc')) document.getElementById('stat-rep-perc').textContent = `${((repUnitsAll / (rows * cols)) * 100).toFixed(1)}%`;
+                    if (document.getElementById('stat-dist')) document.getElementById('stat-dist').textContent = gen.score.toFixed(2);
+
+                    renderGrid(gen);
+                    renderTable(gen.fieldBook);
+
+                    if (resultsSection) {
+                        resultsSection.style.display = 'block';
+                        resultsSection.scrollIntoView({ behavior: 'smooth' });
+                    }
+
+                } catch (e) {
+                    console.error(e);
+                    alert(e.message);
+                }
+            });
+        }
+
+        function renderGrid(gen) {
+            if (!gridContainer) return;
+            gridContainer.innerHTML = '';
+            gridContainer.style.gridTemplateColumns = `repeat(${gen.cols}, 42px)`;
+
+            // Render Row 1 at bottom for spatial consistency
+            for (let r = gen.rows - 1; r >= 0; r--) {
+                for (let c = 0; c < gen.cols; c++) {
+                    const item = gen.matrix[r][c];
+                    const cell = document.createElement('div');
+                    const typeClass = item.type.includes('rep') ? (parseInt(item.type.replace('rep', '')) > 3 ? 'repX' : item.type) : 'unrep';
+                    cell.className = `cell ${typeClass}`;
+                    if (item.id === 0) cell.classList.add('filler');
+
+                    const fbEntry = gen.fieldBook.find(fb => fb.row === r + 1 && fb.col === c + 1);
+                    cell.innerHTML = `
+                        <div class="p-num">${fbEntry.plot}</div>
+                        ${item.id !== 0 ? item.id : ''}
+                    `;
+                    cell.title = `${item.name} | Plot ${fbEntry.plot} (R${r + 1} C${c + 1})`;
+                    gridContainer.appendChild(cell);
+                }
             }
         }
+
+        function renderTable(data) {
+            if (!fbTableBody) return;
+            fbTableBody.innerHTML = '';
+            data.forEach(row => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${row.plot}</td>
+                    <td>${row.row}</td>
+                    <td>${row.col}</td>
+                    <td>${row.entryId}</td>
+                    <td style="font-weight: 600;">${row.name}</td>
+                    <td>${row.repIdx}</td>
+                `;
+                fbTableBody.appendChild(tr);
+            });
+        }
+
+        // Tabs
+        tabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                tabs.forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                const target = tab.getAttribute('data-tab');
+                if (!target) return;
+
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                const targetEl = document.getElementById(target);
+                if (targetEl) targetEl.classList.add('active');
+            });
+        });
+
+        // Exports
+        if (exportCsvBtn) {
+            exportCsvBtn.onclick = () => {
+                if (!currentGenerator) return;
+                const headers = ["Plot", "Row", "Col", "Entry", "Name", "RepIdx"];
+                const csv = [headers.join(",")];
+                currentGenerator.fieldBook.forEach(row => {
+                    csv.push([row.plot, row.row, row.col, row.entryId, row.name, row.repIdx].join(","));
+                });
+                const blob = new Blob([csv.join("\n")], { type: 'text/csv' });
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = `prep_design_${Date.now()}.csv`;
+                a.click();
+            };
+        }
+
+        if (downloadPngBtn) {
+            downloadPngBtn.onclick = () => {
+                const container = document.getElementById('map-capture');
+                if (!container || typeof html2canvas === 'undefined') {
+                    alert("Map container missing or library error");
+                    return;
+                }
+                html2canvas(container, { backgroundColor: null, scale: 3 }).then(canvas => {
+                    const a = document.createElement('a');
+                    a.download = `prep_field_map_${Date.now()}.png`;
+                    a.href = canvas.toDataURL();
+                    a.click();
+                });
+            };
+        }
+    } catch (e) {
+        console.error("Prep App Init Error", e);
     }
-
-    function renderTable(data) {
-        fbTableBody.innerHTML = '';
-        data.forEach(row => {
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td>${row.plot}</td>
-                <td>${row.row}</td>
-                <td>${row.col}</td>
-                <td>${row.entryId}</td>
-                <td style="font-weight: 600;">${row.name}</td>
-                <td>${row.repIdx}</td>
-            `;
-            fbTableBody.appendChild(tr);
-        });
-    }
-
-    // Tabs
-    tabs.forEach(tab => {
-        tab.addEventListener('click', () => {
-            tabs.forEach(t => t.classList.remove('active'));
-            tab.classList.add('active');
-            const target = tab.getAttribute('data-tab');
-            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-            document.getElementById(target).classList.add('active');
-        });
-    });
-
-    // Exports
-    document.getElementById('export-csv').onclick = () => {
-        if (!currentGenerator) return;
-        const headers = ["Plot", "Row", "Col", "Entry", "Name", "RepIdx"];
-        const csv = [headers.join(",")];
-        currentGenerator.fieldBook.forEach(row => {
-            csv.push([row.plot, row.row, row.col, row.entryId, row.name, row.repIdx].join(","));
-        });
-        const blob = new Blob([csv.join("\n")], { type: 'text/csv' });
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = `prep_design_${Date.now()}.csv`;
-        a.click();
-    };
-
-    document.getElementById('download-png').onclick = () => {
-        const container = document.getElementById('map-capture');
-        html2canvas(container, { backgroundColor: null, scale: 3 }).then(canvas => {
-            const a = document.createElement('a');
-            a.download = `prep_field_map_${Date.now()}.png`;
-            a.href = canvas.toDataURL();
-            a.click();
-        });
-    };
 });

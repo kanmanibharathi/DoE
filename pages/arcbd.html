@@ -14,11 +14,12 @@
     <!-- html2canvas for Export -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <style>
-                :root {
+        :root {
             --primary: #00a651;
             --secondary: #008c44;
             --accent: #2ecc71;
-            --bg: #1f2122; /* Darker background from reference implied theme */
+            --bg: #1f2122;
+            /* Darker background from reference implied theme */
             --card-bg: rgba(255, 255, 255, 0.05);
             --text: #ffffff;
             --text-dim: #cccccc;
@@ -105,7 +106,7 @@
 
         .main-grid {
             display: grid;
-            grid-template-columns: 380px 1fr;
+            grid-template-columns: 400px 1fr;
             gap: 2rem;
             align-items: start;
         }
@@ -432,13 +433,15 @@
                 font-size: 2rem;
             }
         }
-            /* Navigation Group Styles */
+
+        /* Navigation Group Styles */
         .category-btn {
             background: rgba(255, 255, 255, 0.05);
             border: 1px solid var(--border);
             color: var(--text-dim);
             padding: 0.8rem 1.5rem;
-            border-radius: 50px; /* Pill shape */
+            border-radius: 50px;
+            /* Pill shape */
             cursor: pointer;
             font-weight: 600;
             display: flex;
@@ -454,7 +457,8 @@
         }
 
         .category-btn.active {
-            background: var(--gradient); /* Active gradient */
+            background: var(--gradient);
+            /* Active gradient */
             color: white;
             border-color: transparent;
             box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);
@@ -488,10 +492,11 @@
             position: relative;
         }
 
-        .nav-link:hover, .nav-link.active {
+        .nav-link:hover,
+        .nav-link.active {
             color: var(--text);
         }
-        
+
         .nav-link.active::after {
             content: '';
             position: absolute;
@@ -502,7 +507,8 @@
             background: var(--primary);
             border-radius: 2px;
         }
-            /* Dropdown Options Styling */
+
+        /* Dropdown Options Styling */
         option {
             background-color: #333333;
             color: #ffffff;
@@ -514,9 +520,11 @@
 <body>
 
     <div class="container">
-                        <div class="nav-wrapper" style="margin-bottom: 3rem; border-bottom: 1px solid var(--border); padding-bottom: 1rem;">
+        <div class="nav-wrapper"
+            style="margin-bottom: 3rem; border-bottom: 1px solid var(--border); padding-bottom: 1rem;">
             <!-- Categories -->
-            <div class="category-pills" style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; margin-bottom: 1.5rem;">
+            <div class="category-pills"
+                style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; margin-bottom: 1.5rem;">
                 <button class="category-btn" data-category="lattice">
                     <i class="fas fa-th"></i> Lattice Designs
                 </button>
@@ -545,27 +553,27 @@
 
                 <!-- Basic Designs -->
                 <div class="nav-group" id="group-basic">
-                     <a href="crd.html" class="nav-link">CRD</a>
-                     <a href="rcbd.html" class="nav-link">RCBD</a>
-                     <a href="latin.html" class="nav-link">Latin Square</a>
-                     <a href="arcbd.html" class="nav-link">Augmented RCBD</a>
+                    <a href="crd.html" class="nav-link">CRD</a>
+                    <a href="rcbd.html" class="nav-link">RCBD</a>
+                    <a href="latin.html" class="nav-link">Latin Square</a>
+                    <a href="arcbd.html" class="nav-link">Augmented RCBD</a>
                 </div>
 
                 <!-- Factorial Designs -->
                 <div class="nav-group" id="group-factorial">
-                     <a href="factorial.html" class="nav-link">Factorial</a>
-                     <a href="splitplot.html" class="nav-link">Split Plot</a>
-                     <a href="splitsplitplot.html" class="nav-link">Split-Split Plot</a>
-                     <a href="stripplot.html" class="nav-link">Strip Plot</a>
-                     <a href="splitrep.html" class="nav-link">Split Population</a>
+                    <a href="factorial.html" class="nav-link">Factorial</a>
+                    <a href="splitplot.html" class="nav-link">Split Plot</a>
+                    <a href="splitsplitplot.html" class="nav-link">Split-Split Plot</a>
+                    <a href="stripplot.html" class="nav-link">Strip Plot</a>
+                    <a href="splitrep.html" class="nav-link">Split Population</a>
                 </div>
 
                 <!-- Specialized Designs -->
                 <div class="nav-group" id="group-specialized">
-                     <a href="diagonal.html" class="nav-link">Diagonal</a>
-                     <a href="diagonal-multiple.html" class="nav-link">Multiple Diagonal</a>
-                     <a href="optimized.html" class="nav-link">Optimized Un-rep</a>
-                     <a href="prep.html" class="nav-link">Spatial P-Rep</a>
+                    <a href="diagonal.html" class="nav-link">Diagonal</a>
+                    <a href="diagonal-multiple.html" class="nav-link">Multiple Diagonal</a>
+                    <a href="optimized.html" class="nav-link">Optimized Un-rep</a>
+                    <a href="prep.html" class="nav-link">Spatial P-Rep</a>
                 </div>
             </div>
         </div>
@@ -583,7 +591,7 @@
             });
 
             // Auto-highlight current page
-            (function(){
+            (function () {
                 const currentPath = window.location.pathname.split('/').pop();
                 const links = document.querySelectorAll('.nav-link');
                 let activeFound = false;
@@ -592,22 +600,22 @@
                     if (href === currentPath) {
                         link.classList.add('active');
                         const group = link.closest('.nav-group');
-                        if(group){
+                        if (group) {
                             group.classList.add('active');
                             const cat = group.id.replace('group-', '');
                             const btn = document.querySelector(`.category-btn[data-category='${cat}']`);
-                            if(btn) btn.classList.add('active');
+                            if (btn) btn.classList.add('active');
                             activeFound = true;
                         }
                     }
                 });
-                
+
                 if (!activeFound) {
-                     const defaultGroup = document.getElementById('group-lattice');
-                     if(defaultGroup && !document.querySelector('.nav-group.active')) {
-                         defaultGroup.classList.add('active');
-                         document.querySelector('.category-btn[data-category="lattice"]').classList.add('active');
-                     }
+                    const defaultGroup = document.getElementById('group-lattice');
+                    if (defaultGroup && !document.querySelector('.nav-group.active')) {
+                        defaultGroup.classList.add('active');
+                        document.querySelector('.category-btn[data-category="lattice"]').classList.add('active');
+                    }
                 }
             })();
         </script>

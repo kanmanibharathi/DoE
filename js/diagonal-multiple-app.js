@@ -2,6 +2,7 @@
  * Diagonal Multiple Arrangement Design Generator
  * Implements DBUDC (Diagonal Balanced Unreplicated Design with Checks) for Multiple Experiments
  */
+'use strict';
 
 class DiagonalMultipleGenerator {
     constructor(params) {
@@ -13,7 +14,10 @@ class DiagonalMultipleGenerator {
         this.planter = params.planter; // "serpentine" or "cartesian"
         this.exptNames = params.exptNames;
         this.locationNames = params.locationNames;
-        this.seed = parseInt(params.seed);
+
+        let s = params.seed;
+        this.seed = (s !== null && s !== undefined && !isNaN(s)) ? parseInt(s) : Math.floor(Math.random() * 1000000);
+
         this.sameEntries = params.sameEntries === 'Yes';
         this.customEntryNames = params.entryNames || [];
         this.customCheckNames = params.checkNames || [];
@@ -247,255 +251,295 @@ class DiagonalMultipleGenerator {
 
 // UI Controller
 document.addEventListener('DOMContentLoaded', () => {
-    const runBtn = document.getElementById('run-btn');
-    const generateBtn = document.getElementById('generate-btn');
-    const simulateBtn = document.getElementById('simulate-btn');
-    const exportBtn = document.getElementById('export-btn');
-    const optionsPanel = document.getElementById('options-panel');
-    const dimSelect = document.getElementById('dimensions-multiple');
-    const resultsSection = document.getElementById('results');
-    const fbTableBody = document.querySelector('#field-book-table tbody');
-    const locViewSelect = document.getElementById('locView-diagonal-db');
-    const heatmapTrigger = document.getElementById('heatmap-trigger');
+    try {
+        const runBtn = document.getElementById('run-btn');
+        const generateBtn = document.getElementById('generate-btn');
+        const simulateBtn = document.getElementById('simulate-btn');
+        const exportBtn = document.getElementById('export-btn');
+        const optionsPanel = document.getElementById('options-panel');
+        const dimSelect = document.getElementById('dimensions-multiple');
+        const resultsSection = document.getElementById('results');
+        const fbTableBody = document.querySelector('#field-book-table tbody');
+        const locViewSelect = document.getElementById('locView-diagonal-db');
+        const heatmapTrigger = document.getElementById('heatmap-trigger');
 
-    const matrixWrapper = document.getElementById('matrix-wrapper');
-    const exptMatrixWrapper = document.getElementById('expt-matrix-wrapper');
-    const plotMatrixWrapper = document.getElementById('plot-matrix-wrapper');
-    const heatmapWrapper = document.getElementById('heatmap-wrapper');
+        const matrixWrapper = document.getElementById('matrix-wrapper');
+        const exptMatrixWrapper = document.getElementById('expt-matrix-wrapper');
+        const plotMatrixWrapper = document.getElementById('plot-matrix-wrapper');
+        const heatmapWrapper = document.getElementById('heatmap-wrapper');
 
-    let currentGenerator = null;
+        let currentGenerator = null;
 
-    runBtn.addEventListener('click', () => {
-        const totalEntries = parseInt(document.getElementById('lines-db').value);
-        const checksCount = parseInt(document.getElementById('checks-db').value);
-        const blocksStr = document.getElementById('blocks-db').value;
-        const blocksArr = blocksStr.split(',').map(s => parseInt(s.trim()));
+        if (runBtn) {
+            runBtn.addEventListener('click', () => {
+                try {
+                    const totalEntries = parseInt(document.getElementById('lines-db').value);
+                    const checksCount = parseInt(document.getElementById('checks-db').value);
+                    const blocksStr = document.getElementById('blocks-db').value;
+                    const blocksArr = blocksStr.split(',').map(s => parseInt(s.trim()));
 
-        const sumBlocks = blocksArr.reduce((a, b) => a + b, 0);
-        const sameEntries = document.getElementById('sameEntries').value;
+                    const sumBlocks = blocksArr.reduce((a, b) => a + b, 0);
+                    const sameEntries = document.getElementById('sameEntries').value;
 
-        if (sameEntries === 'No' && sumBlocks !== totalEntries) {
-            alert(`Error: Sum of blocks (${sumBlocks}) must equal total entries (${totalEntries}) when entries are not repeated.`);
-            return;
-        }
+                    if (isNaN(totalEntries) || isNaN(checksCount) || blocksArr.some(isNaN)) {
+                        alert("Please check your inputs.");
+                        return;
+                    }
 
-        const options = DiagonalMultipleGenerator.findFieldOptions(sameEntries === 'Yes' ? blocksArr[0] : totalEntries, checksCount);
+                    if (sameEntries === 'No' && sumBlocks !== totalEntries) {
+                        alert(`Error: Sum of blocks (${sumBlocks}) must equal total entries (${totalEntries}) when entries are not repeated.`);
+                        return;
+                    }
 
-        dimSelect.innerHTML = '';
-        options.forEach(opt => {
-            const el = document.createElement('option');
-            el.value = `${opt.rows},${opt.cols}`;
-            el.textContent = `${opt.rows} Rows x ${opt.cols} Columns (Total Plots: ${opt.total})`;
-            dimSelect.appendChild(el);
-        });
+                    const options = DiagonalMultipleGenerator.findFieldOptions(sameEntries === 'Yes' ? blocksArr[0] : totalEntries, checksCount);
 
-        optionsPanel.style.display = 'block';
-        runBtn.innerHTML = '<i class="fas fa-check"></i> Options Loaded';
-    });
+                    dimSelect.innerHTML = '';
+                    options.forEach(opt => {
+                        const el = document.createElement('option');
+                        el.value = `${opt.rows},${opt.cols}`;
+                        el.textContent = `${opt.rows} Rows x ${opt.cols} Columns (Total Plots: ${opt.total})`;
+                        dimSelect.appendChild(el);
+                    });
 
-    generateBtn.addEventListener('click', () => {
-        const [rows, cols] = dimSelect.value.split(',').map(Number);
-        const params = {
-            totalEntries: document.getElementById('lines-db').value,
-            blocksArr: document.getElementById('blocks-db').value.split(',').map(s => parseInt(s.trim())),
-            checksCount: document.getElementById('checks-db').value,
-            locationsCount: document.getElementById('locs-db').value,
-            stacked: document.getElementById('stacked-input').value,
-            planter: document.getElementById('planter-multiple').value,
-            exptNames: document.getElementById('expt-name-multiple').value.split(',').map(s => s.trim()),
-            locationNames: document.getElementById('location-multiple').value.split(',').map(s => s.trim()),
-            seed: document.getElementById('seed-multiple').value || 17,
-            sameEntries: document.getElementById('sameEntries').value,
-            entryNames: document.getElementById('entry-names-db').value.split(',').map(s => s.trim()).filter(s => s !== ""),
-            checkNames: document.getElementById('check-names-db').value.split(',').map(s => s.trim()).filter(s => s !== "")
-        };
-
-        currentGenerator = new DiagonalMultipleGenerator(params);
-        const startPlot = parseInt(document.getElementById('plot-start-multiple').value);
-        const data = currentGenerator.generate(rows, cols, startPlot);
-
-        // Update Location View Select
-        locViewSelect.innerHTML = '';
-        for (let i = 1; i <= params.locationsCount; i++) {
-            const opt = document.createElement('option');
-            opt.value = i - 1;
-            opt.textContent = params.locationNames[i - 1] || `Location ${i}`;
-            locViewSelect.appendChild(opt);
-        }
-
-        updateUI();
-        resultsSection.style.display = 'block';
-        simulateBtn.style.display = 'block';
-        exportBtn.style.display = 'block';
-        document.getElementById('copy-btn').style.display = 'block';
-        document.getElementById('download-map-btn').style.display = 'block';
-        resultsSection.scrollIntoView({ behavior: 'smooth' });
-    });
-
-//     document.getElementById('copy-btn').addEventListener('click', () => {
-//         if (!currentGenerator) return;
-//         const headers = ["ID", "Plot", "Location", "Row", "Col", "Expt", "Entry", "Name", "Type"];
-//         if (currentGenerator.fieldBook[0].yield) headers.push("Yield");
-//         const tsv = [headers.join("\t"), ...currentGenerator.fieldBook.map(r => {
-//             const row = [r.id, r.plot, r.location, r.row, r.col, r.expt, r.entryId, r.name, r.type];
-//             if (r.yield) row.push(r.yield);
-//             return row.join("\t");
-//         })].join("\n");
-//         navigator.clipboard.writeText(tsv).then(() => alert("Copied to clipboard!"));
-//     });
-
-    document.getElementById('download-map-btn').addEventListener('click', () => {
-        const container = document.getElementById('map-container');
-        html2canvas(container, { backgroundColor: '#1f2122', scale: 2 }).then(canvas => {
-            const a = document.createElement('a');
-            a.download = `diagonal_multiple_map_${Date.now()}.png`;
-            a.href = canvas.toDataURL();
-            a.click();
-        });
-    });
-
-    locViewSelect.addEventListener('change', updateUI);
-
-    simulateBtn.addEventListener('click', () => {
-        if (!currentGenerator) return;
-        currentGenerator.simulate();
-        updateUI();
-        heatmapTrigger.style.display = 'block';
-        alert("Simulation complete! Check the Heatmap tab.");
-    });
-
-    function updateUI() {
-        if (!currentGenerator) return;
-        const locIdx = parseInt(locViewSelect.value);
-        const matrixObj = currentGenerator.matrices[locIdx];
-
-        // Info Cards
-        document.getElementById('info-dim').textContent = currentGenerator.info.dim;
-        document.getElementById('info-check-pct').textContent = currentGenerator.info.checkPct;
-        document.getElementById('info-total-plots').textContent = currentGenerator.info.totalPlots;
-
-        renderMatrix(matrixObj.design, matrixWrapper, 'design');
-        renderMatrix(matrixObj.expt, exptMatrixWrapper, 'expt');
-        renderMatrix(matrixObj.plot, plotMatrixWrapper, 'plot');
-        renderTable(currentGenerator.fieldBook);
-
-        if (currentGenerator.fieldBook[0].yield) {
-            renderHeatmap(currentGenerator.matrices[locIdx].design, currentGenerator.fieldBook, locIdx);
-        }
-    }
-
-    function renderMatrix(matrix, container, type) {
-        container.innerHTML = '';
-        const rows = matrix.length;
-        const cols = matrix[0].length;
-        container.style.gridTemplateColumns = `repeat(${cols}, 50px)`;
-
-        // R-style numbering (bottom up or top down?) 
-        // We'll follow the same pattern as diagonal tool
-        for (let r = rows - 1; r >= 0; r--) {
-            for (let c = 0; c < cols; c++) {
-                const cell = document.createElement('div');
-                cell.className = 'cell';
-
-                if (type === 'design') {
-                    const item = matrix[r][c];
-                    cell.classList.add(item.type.toLowerCase());
-                    cell.innerHTML = `<span>${item.id || ''}</span><small style="font-size: 0.5rem; opacity: 0.7;">${item.type[0]}</small>`;
-                } else if (type === 'expt') {
-                    const val = matrix[r][c];
-                    cell.textContent = val === 'Check' ? 'CH' : (val === 'Filler' ? 'F' : val.substring(0, 4));
-                    if (val === 'Check') cell.classList.add('check');
-                    else if (val !== 'Filler') cell.classList.add('entry');
-                    else cell.classList.add('filler');
-                } else {
-                    cell.textContent = matrix[r][c];
-                    cell.classList.add('filler');
-                    cell.style.opacity = 1;
+                    optionsPanel.style.display = 'block';
+                    runBtn.innerHTML = '<i class="fas fa-check"></i> Options Loaded';
+                } catch (e) {
+                    alert("Error processing options: " + e.message);
                 }
-                container.appendChild(cell);
+            });
+        }
+
+        if (generateBtn) {
+            generateBtn.addEventListener('click', () => {
+                try {
+                    if (!dimSelect.value) return;
+                    const [rows, cols] = dimSelect.value.split(',').map(Number);
+
+                    const seedVal = document.getElementById('seed-multiple').value;
+
+                    const params = {
+                        totalEntries: document.getElementById('lines-db').value,
+                        blocksArr: document.getElementById('blocks-db').value.split(',').map(s => parseInt(s.trim())),
+                        checksCount: document.getElementById('checks-db').value,
+                        locationsCount: document.getElementById('locs-db').value,
+                        stacked: document.getElementById('stacked-input').value,
+                        planter: document.getElementById('planter-multiple').value,
+                        exptNames: document.getElementById('expt-name-multiple').value.split(',').map(s => s.trim()),
+                        locationNames: document.getElementById('location-multiple').value.split(',').map(s => s.trim()),
+                        seed: seedVal,
+                        sameEntries: document.getElementById('sameEntries').value,
+                        entryNames: document.getElementById('entry-names-db').value.split(',').map(s => s.trim()).filter(s => s !== ""),
+                        checkNames: document.getElementById('check-names-db').value.split(',').map(s => s.trim()).filter(s => s !== "")
+                    };
+
+                    currentGenerator = new DiagonalMultipleGenerator(params);
+                    const startPlot = parseInt(document.getElementById('plot-start-multiple').value);
+                    const data = currentGenerator.generate(rows, cols, startPlot);
+
+                    // Update Location View Select
+                    if (locViewSelect) {
+                        locViewSelect.innerHTML = '';
+                        for (let i = 1; i <= params.locationsCount; i++) {
+                            const opt = document.createElement('option');
+                            opt.value = i - 1;
+                            opt.textContent = params.locationNames[i - 1] || `Location ${i}`;
+                            locViewSelect.appendChild(opt);
+                        }
+                    }
+
+                    updateUI();
+                    resultsSection.style.display = 'block';
+                    if (simulateBtn) simulateBtn.style.display = 'block';
+                    if (exportBtn) exportBtn.style.display = 'block';
+                    if (document.getElementById('copy-btn')) document.getElementById('copy-btn').style.display = 'block';
+                    if (document.getElementById('download-map-btn')) document.getElementById('download-map-btn').style.display = 'block';
+                    resultsSection.scrollIntoView({ behavior: 'smooth' });
+
+                } catch (e) {
+                    alert("Generation error: " + e.message);
+                }
+            });
+        }
+
+        if (document.getElementById('download-map-btn')) {
+            document.getElementById('download-map-btn').addEventListener('click', () => {
+                const container = document.getElementById('map-container');
+                if (!container || typeof html2canvas === 'undefined') {
+                    alert('Map container error or library missing');
+                    return;
+                }
+                html2canvas(container, { backgroundColor: '#1f2122', scale: 2 }).then(canvas => {
+                    const a = document.createElement('a');
+                    a.download = `diagonal_multiple_map_${Date.now()}.png`;
+                    a.href = canvas.toDataURL();
+                    a.click();
+                });
+            });
+        }
+
+        if (locViewSelect) locViewSelect.addEventListener('change', updateUI);
+
+        if (simulateBtn) {
+            simulateBtn.addEventListener('click', () => {
+                if (!currentGenerator) return;
+                currentGenerator.simulate();
+                updateUI();
+                if (heatmapTrigger) heatmapTrigger.style.display = 'block';
+                alert("Simulation complete! Check the Heatmap tab.");
+            });
+        }
+
+        function updateUI() {
+            if (!currentGenerator || !locViewSelect) return;
+            const locIdx = parseInt(locViewSelect.value);
+            const matrixObj = currentGenerator.matrices[locIdx];
+
+            // Info Cards
+            if (document.getElementById('info-dim')) document.getElementById('info-dim').textContent = currentGenerator.info.dim;
+            if (document.getElementById('info-check-pct')) document.getElementById('info-check-pct').textContent = currentGenerator.info.checkPct;
+            if (document.getElementById('info-total-plots')) document.getElementById('info-total-plots').textContent = currentGenerator.info.totalPlots;
+
+            renderMatrix(matrixObj.design, matrixWrapper, 'design');
+            renderMatrix(matrixObj.expt, exptMatrixWrapper, 'expt');
+            renderMatrix(matrixObj.plot, plotMatrixWrapper, 'plot');
+            renderTable(currentGenerator.fieldBook);
+
+            if (currentGenerator.fieldBook[0].yield) {
+                renderHeatmap(currentGenerator.matrices[locIdx].design, currentGenerator.fieldBook, locIdx);
             }
         }
-    }
 
-    function renderTable(data) {
-        fbTableBody.innerHTML = '';
-        data.forEach(row => {
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td>${row.id}</td>
-                <td><strong>${row.plot}</strong></td>
-                <td>${row.location}</td>
-                <td>${row.row}</td>
-                <td>${row.col}</td>
-                <td>${row.expt}</td>
-                <td>${row.entryId}</td>
-                <td>${row.name}</td>
-                <td>${row.isCheck ? '<span style="color: #2ecc71;"><i class="fas fa-check"></i></span>' : '-'}</td>
-                ${row.yield ? `<td style="color: var(--secondary); font-weight: 700;">${row.yield}</td>` : ''}
-            `;
-            const header = document.querySelector('#field-book-table thead tr');
-            if (row.yield && header.cells.length < 10) {
-                const th = document.createElement('th');
-                th.textContent = "Yield";
-                header.appendChild(th);
-            }
-            fbTableBody.appendChild(tr);
-        });
-    }
+        function renderMatrix(matrix, container, type) {
+            if (!container) return;
+            container.innerHTML = '';
+            const rows = matrix.length;
+            const cols = matrix[0].length;
+            container.style.gridTemplateColumns = `repeat(${cols}, 50px)`;
 
-    function renderHeatmap(matrix, fieldBook, locIdx) {
-        heatmapWrapper.innerHTML = '';
-        const rows = matrix.length;
-        const cols = matrix[0].length;
-        heatmapWrapper.style.gridTemplateColumns = `repeat(${cols}, 50px)`;
+            // R-style numbering (bottom up)
+            for (let r = rows - 1; r >= 0; r--) {
+                for (let c = 0; c < cols; c++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'cell';
 
-        const locName = document.getElementById('location-multiple').value.split(',')[locIdx]?.trim() || `Loc ${locIdx + 1}`;
-        const locData = fieldBook.filter(f => f.location === locName || f.location === `Loc ${locIdx + 1}`);
-        const yields = locData.map(f => parseFloat(f.yield));
-        const min = Math.min(...yields);
-        const max = Math.max(...yields);
-
-        for (let r = rows - 1; r >= 0; r--) {
-            for (let c = 0; c < cols; c++) {
-                const fbEntry = locData.find(f => f.row === r + 1 && f.col === c + 1);
-                const val = parseFloat(fbEntry.yield);
-                const ratio = (val - min) / (max - min);
-
-                const cell = document.createElement('div');
-                cell.className = 'cell';
-                cell.style.background = `rgba(244, 63, 94, ${0.1 + ratio * 0.9})`;
-                cell.style.color = ratio > 0.5 ? 'white' : 'var(--text-dim)';
-                cell.innerHTML = `<span style="font-size: 0.6rem;">${val.toFixed(1)}</span>`;
-                heatmapWrapper.appendChild(cell);
+                    if (type === 'design') {
+                        const item = matrix[r][c];
+                        cell.classList.add(item.type.toLowerCase());
+                        cell.innerHTML = `<span>${item.id || ''}</span><small style="font-size: 0.5rem; opacity: 0.7;">${item.type[0]}</small>`;
+                    } else if (type === 'expt') {
+                        const val = matrix[r][c];
+                        cell.textContent = val === 'Check' ? 'CH' : (val === 'Filler' ? 'F' : val.substring(0, 4));
+                        if (val === 'Check') cell.classList.add('check');
+                        else if (val !== 'Filler') cell.classList.add('entry');
+                        else cell.classList.add('filler');
+                    } else {
+                        cell.textContent = matrix[r][c];
+                        cell.classList.add('filler');
+                        cell.style.opacity = 1;
+                    }
+                    container.appendChild(cell);
+                }
             }
         }
-    }
 
-    // Tabs
-    document.querySelectorAll('.tab').forEach(tab => {
-        tab.addEventListener('click', () => {
-            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-            tab.classList.add('active');
-            document.getElementById(tab.dataset.tab).classList.add('active');
+        function renderTable(data) {
+            if (!fbTableBody) return;
+            fbTableBody.innerHTML = '';
+            data.forEach(row => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${row.id}</td>
+                    <td><strong>${row.plot}</strong></td>
+                    <td>${row.location}</td>
+                    <td>${row.row}</td>
+                    <td>${row.col}</td>
+                    <td>${row.expt}</td>
+                    <td>${row.entryId}</td>
+                    <td>${row.name}</td>
+                    <td>${row.isCheck ? '<span style="color: #2ecc71;"><i class="fas fa-check"></i></span>' : '-'}</td>
+                    ${row.yield ? `<td style="color: var(--secondary); font-weight: 700;">${row.yield}</td>` : ''}
+                `;
+                const header = document.querySelector('#field-book-table thead tr');
+                if (row.yield && header.cells.length < 10) {
+                    const th = document.createElement('th');
+                    th.textContent = "Yield";
+                    header.appendChild(th);
+                }
+                fbTableBody.appendChild(tr);
+            });
+        }
+
+        function renderHeatmap(matrix, fieldBook, locIdx) {
+            if (!heatmapWrapper) return;
+            heatmapWrapper.innerHTML = '';
+            const rows = matrix.length;
+            const cols = matrix[0].length;
+            heatmapWrapper.style.gridTemplateColumns = `repeat(${cols}, 50px)`;
+
+            const locInputVal = document.getElementById('location-multiple').value;
+            const locName = locInputVal.split(',')[locIdx]?.trim() || `Loc ${locIdx + 1}`;
+            const locData = fieldBook.filter(f => f.location === locName || f.location === `Loc ${locIdx + 1}`);
+            const yields = locData.map(f => parseFloat(f.yield)).filter(y => !isNaN(y));
+
+            let min = 0, max = 100;
+            if (yields.length > 0) {
+                min = Math.min(...yields);
+                max = Math.max(...yields);
+            }
+
+            for (let r = rows - 1; r >= 0; r--) {
+                for (let c = 0; c < cols; c++) {
+                    const fbEntry = locData.find(f => f.row === r + 1 && f.col === c + 1);
+                    const cell = document.createElement('div');
+                    cell.className = 'cell';
+
+                    if (fbEntry && fbEntry.yield) {
+                        const val = parseFloat(fbEntry.yield);
+                        const ratio = (val - min) / (max - min || 1);
+                        cell.style.background = `rgba(244, 63, 94, ${0.1 + ratio * 0.9})`;
+                        cell.style.color = ratio > 0.5 ? 'white' : 'var(--text-dim)';
+                        cell.innerHTML = `<span style="font-size: 0.6rem;">${val.toFixed(1)}</span>`;
+                    } else {
+                        cell.style.background = '#ccc';
+                    }
+                    heatmapWrapper.appendChild(cell);
+                }
+            }
+        }
+
+        // Tabs
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                tab.classList.add('active');
+                if (tab.dataset.tab && document.getElementById(tab.dataset.tab)) {
+                    document.getElementById(tab.dataset.tab).classList.add('active');
+                }
+            });
         });
-    });
 
-    exportBtn.addEventListener('click', () => {
-        const headers = ["ID", "Plot", "Location", "Row", "Col", "Expt", "Entry", "Name", "Type"];
-        if (currentGenerator.fieldBook[0].yield) headers.push("Yield");
+        if (exportBtn) {
+            exportBtn.addEventListener('click', () => {
+                if (!currentGenerator) return;
+                const headers = ["ID", "Plot", "Location", "Row", "Col", "Expt", "Entry", "Name", "Type"];
+                if (currentGenerator.fieldBook[0].yield) headers.push("Yield");
 
-        const csv = [headers.join(","), ...currentGenerator.fieldBook.map(r => {
-            const row = [r.id, r.plot, r.location, r.row, r.col, r.expt, r.entryId, r.name, r.type];
-            if (r.yield) row.push(r.yield);
-            return row.join(",");
-        })].join("\n");
+                const csv = [headers.join(","), ...currentGenerator.fieldBook.map(r => {
+                    const row = [r.id, r.plot, r.location, r.row, r.col, r.expt, r.entryId, r.name, r.type];
+                    if (r.yield) row.push(r.yield);
+                    return row.join(",");
+                })].join("\n");
 
-        const blob = new Blob([csv], { type: 'text/csv' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `multiple_diagonal_${Date.now()}.csv`;
-        a.click();
-    });
+                const blob = new Blob([csv], { type: 'text/csv' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `multiple_diagonal_${Date.now()}.csv`;
+                a.click();
+            });
+        }
+    } catch (e) {
+        console.error("Diagonal Multiple App Init Error: ", e);
+    }
 });

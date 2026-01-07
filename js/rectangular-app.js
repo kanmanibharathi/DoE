@@ -2,41 +2,63 @@
  * Rectangular Lattice Design Generator
  * Validates t = s(s-1) and k = s-1
  */
+'use strict';
 
 class RectangularLatticeGenerator {
     constructor() {
         this.initEventListeners();
         this.mulberry = null;
+        this.currentDesign = null;
+        this.fieldBookData = null;
     }
 
     initEventListeners() {
         const tInput = document.getElementById('t-input');
         const kInput = document.getElementById('k-input');
+        const genBtn = document.getElementById('generate-btn');
+        const expBtn = document.getElementById('export-btn');
 
-        tInput.addEventListener('input', () => {
-            const t = parseInt(tInput.value);
-            const s = Math.round(Math.sqrt(t)) + 1; // Solve t = s(s-1) approx
-            if (s * (s - 1) === t) {
-                kInput.value = s - 1;
-                document.getElementById('t-validation').style.display = 'none';
-            } else {
-                document.getElementById('t-validation').style.display = 'block';
-            }
-        });
+        if (tInput && kInput) {
+            tInput.addEventListener('input', () => {
+                const t = parseInt(tInput.value);
+                const s = Math.round(Math.sqrt(t)) + 1; // Solve t = s(s-1) approx
+                if (s * (s - 1) === t) {
+                    kInput.value = s - 1;
+                    if (document.getElementById('t-validation')) document.getElementById('t-validation').style.display = 'none';
+                } else {
+                    if (document.getElementById('t-validation')) document.getElementById('t-validation').style.display = 'block';
+                }
+            });
+        }
 
-        document.getElementById('generate-btn').addEventListener('click', () => this.generate());
-        document.getElementById('export-btn').addEventListener('click', () => this.exportCSV());
-//         document.getElementById('copy-btn').addEventListener('click', () => this.copyToClipboard());
-//         document.getElementById('download-map-btn').addEventListener('click', () => this.downloadMap());
-// 
-//         document.querySelectorAll('.tab').forEach(tab => {
-//             tab.addEventListener('click', (e) => {
-//                 document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-//                 document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-//                 e.target.classList.add('active');
-//                 document.getElementById(e.target.dataset.tab).classList.add('active');
-//             });
-        });
+        if (genBtn) {
+            genBtn.addEventListener('click', () => {
+                try {
+                    this.generate();
+                } catch (e) {
+                    console.error(e);
+                    alert("Error: " + e.message);
+                }
+            });
+        }
+
+        if (expBtn) {
+            expBtn.addEventListener('click', () => this.exportCSV());
+        }
+
+        const tabs = document.querySelectorAll('.tab');
+        if (tabs) {
+            tabs.forEach(tab => {
+                tab.addEventListener('click', () => {
+                    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                    tab.classList.add('active');
+                    const targetId = tab.getAttribute('data-tab');
+                    const content = document.getElementById(targetId);
+                    if (content) content.classList.add('active');
+                });
+            });
+        }
     }
 
     mulberry32(a) {
@@ -57,11 +79,22 @@ class RectangularLatticeGenerator {
     }
 
     generate() {
-        const t = parseInt(document.getElementById('t-input').value);
-        const r = parseInt(document.getElementById('r-input').value);
-        const lCount = parseInt(document.getElementById('loc-input').value);
-        const startPlot = parseInt(document.getElementById('plot-input').value);
-        let seed = parseInt(document.getElementById('seed-input').value);
+        const tInput = document.getElementById('t-input');
+        const rInput = document.getElementById('r-input');
+        const locInput = document.getElementById('loc-input');
+        const plotInput = document.getElementById('plot-input');
+        const seedInput = document.getElementById('seed-input');
+        const trtNamesInput = document.getElementById('trt-names');
+
+        if (!tInput || !rInput) return;
+
+        const t = parseInt(tInput.value);
+        const r = parseInt(rInput.value);
+        const lCount = parseInt(locInput.value);
+        const startPlot = parseInt(plotInput.value);
+
+        const rawSeed = seedInput.value;
+        let seed = (rawSeed !== "" && rawSeed !== null) ? parseInt(rawSeed) : Math.floor(Math.random() * 999999);
 
         // Calculate s from t = s(s-1)
         // s^2 - s - t = 0 => s = (1 + sqrt(1 + 4t)) / 2
@@ -75,7 +108,7 @@ class RectangularLatticeGenerator {
         if (isNaN(seed)) seed = Math.floor(Math.random() * 999999);
         this.mulberry = this.mulberry32(seed);
 
-        const trtNamesRaw = document.getElementById('trt-names').value.split('\n').filter(x => x.trim() !== '');
+        const trtNamesRaw = trtNamesInput ? trtNamesInput.value.split('\n').filter(x => x.trim() !== '') : [];
         const treatments = [];
         for (let i = 1; i <= t; i++) {
             treatments.push({
@@ -88,14 +121,12 @@ class RectangularLatticeGenerator {
         for (let loc = 1; loc <= lCount; loc++) {
             const locReps = [];
             for (let repNum = 1; repNum <= r; repNum++) {
-                // Generate a randomized allocation for this replicate
-                // For a simple lattice visualization/prototype, we shuffle and group
-                // In a real lattice, the grouping logic determines efficiency.
-                // We'll mimic the R field book output style.
                 let repTrts = [...treatments];
                 this.shuffle(repTrts);
 
                 const iblocks = [];
+                // Divide k into blocks of size k (actually blockSize = k). 
+                // Number of blocks = s. Total treatments = s * k = s(s-1) = t. Correct.
                 for (let i = 0; i < s; i++) {
                     const blockTrts = repTrts.slice(i * k, (i + 1) * k);
                     iblocks.push(blockTrts);
@@ -115,96 +146,101 @@ class RectangularLatticeGenerator {
     }
 
     render() {
+        if (!this.currentDesign) return;
         const { t, r, k, s, lCount, startPlot, seed, lambda, locationsData } = this.currentDesign;
 
-        document.getElementById('info-s').textContent = s;
-        document.getElementById('info-k').textContent = k;
-        document.getElementById('info-lambda').textContent = lambda.toFixed(4);
-        document.getElementById('info-total').textContent = t * r * lCount;
+        if (document.getElementById('info-s')) document.getElementById('info-s').textContent = s;
+        if (document.getElementById('info-k')) document.getElementById('info-k').textContent = k;
+        if (document.getElementById('info-lambda')) document.getElementById('info-lambda').textContent = lambda.toFixed(4);
+        if (document.getElementById('info-total')) document.getElementById('info-total').textContent = t * r * lCount;
 
-        document.getElementById('results').style.display = 'block';
+        const results = document.getElementById('results');
+        if (results) results.style.display = 'block';
 
         // Render Table
         const tbody = document.querySelector('#field-book-table tbody');
-        tbody.innerHTML = '';
-        const fieldBookRows = [];
+        if (tbody) {
+            tbody.innerHTML = '';
+            const fieldBookRows = [];
 
-        let globalId = 1;
-        locationsData.forEach((locReps, lIdx) => {
-            let currentPlot = startPlot + (lIdx * 1000); // Standard R offset
-            locReps.forEach((rep, rIdx) => {
-                rep.forEach((block, bIdx) => {
-                    block.forEach((trt, pIdx) => {
-                        const tr = document.createElement('tr');
-                        tr.innerHTML = `
-                            <td>${globalId}</td>
-                            <td>Loc ${lIdx + 1}</td>
-                            <td>${currentPlot}</td>
-                            <td>${rIdx + 1}</td>
-                            <td>${bIdx + 1}</td>
-                            <td>${trt.entry}</td>
-                            <td>${trt.name}</td>
-                        `;
-                        tbody.appendChild(tr);
-                        fieldBookRows.push({
-                            id: globalId++,
-                            location: lIdx + 1,
-                            plot: currentPlot++,
-                            rep: rIdx + 1,
-                            iblock: bIdx + 1,
-                            entry: trt.entry,
-                            name: trt.name
+            let globalId = 1;
+            locationsData.forEach((locReps, lIdx) => {
+                let currentPlot = startPlot + (lIdx * 1000); // Standard R offset
+                locReps.forEach((rep, rIdx) => {
+                    rep.forEach((block, bIdx) => {
+                        block.forEach((trt, pIdx) => {
+                            const tr = document.createElement('tr');
+                            tr.innerHTML = `
+                                <td>${globalId}</td>
+                                <td>Loc ${lIdx + 1}</td>
+                                <td>${currentPlot}</td>
+                                <td>${rIdx + 1}</td>
+                                <td>${bIdx + 1}</td>
+                                <td>${trt.entry}</td>
+                                <td>${trt.name}</td>
+                            `;
+                            tbody.appendChild(tr);
+                            fieldBookRows.push({
+                                id: globalId++,
+                                location: lIdx + 1,
+                                plot: currentPlot++,
+                                rep: rIdx + 1,
+                                iblock: bIdx + 1,
+                                entry: trt.entry,
+                                name: trt.name
+                            });
                         });
                     });
                 });
             });
-        });
-
-        this.fieldBookData = fieldBookRows;
+            this.fieldBookData = fieldBookRows;
+        }
 
         // Render Map
         const mapContainer = document.getElementById('map-container');
-        mapContainer.innerHTML = '';
+        if (mapContainer) {
+            mapContainer.innerHTML = '';
 
-        locationsData.forEach((locReps, lIdx) => {
-            const locDiv = document.createElement('div');
-            locDiv.innerHTML = `<h3 style="margin: 2rem 0 1rem; color: var(--text-dim);">Location ${lIdx + 1}</h3>`;
+            locationsData.forEach((locReps, lIdx) => {
+                const locDiv = document.createElement('div');
+                locDiv.innerHTML = `<h3 style="margin: 2rem 0 1rem; color: var(--text-dim);">Location ${lIdx + 1}</h3>`;
 
-            locReps.forEach((rep, rIdx) => {
-                const repGroup = document.createElement('div');
-                repGroup.className = 'replicate-group';
-                repGroup.innerHTML = `<div class="replicate-title">Replicate ${rIdx + 1}</div>`;
+                locReps.forEach((rep, rIdx) => {
+                    const repGroup = document.createElement('div');
+                    repGroup.className = 'replicate-group';
+                    repGroup.innerHTML = `<div class="replicate-title">Replicate ${rIdx + 1}</div>`;
 
-                const blocksGrid = document.createElement('div');
-                blocksGrid.className = 'blocks-grid';
+                    const blocksGrid = document.createElement('div');
+                    blocksGrid.className = 'blocks-grid';
 
-                rep.forEach((block, bIdx) => {
-                    const blockRow = document.createElement('div');
-                    blockRow.className = 'block-row';
-                    blockRow.innerHTML = `<div class="block-label">Block ${bIdx + 1}</div>`;
+                    rep.forEach((block, bIdx) => {
+                        const blockRow = document.createElement('div');
+                        blockRow.className = 'block-row';
+                        blockRow.innerHTML = `<div class="block-label">Block ${bIdx + 1}</div>`;
 
-                    const plotsContainer = document.createElement('div');
-                    plotsContainer.className = 'plots-container';
+                        const plotsContainer = document.createElement('div');
+                        plotsContainer.className = 'plots-container';
 
-                    block.forEach((trt, pIdx) => {
-                        const cell = document.createElement('div');
-                        cell.className = 'plot-cell';
-                        cell.innerHTML = `
-                            <div class="plot-num">${trt.entry}</div>
-                            <div class="trt-name">${trt.name}</div>
-                        `;
-                        plotsContainer.appendChild(cell);
+                        block.forEach((trt, pIdx) => {
+                            const cell = document.createElement('div');
+                            cell.className = 'plot-cell';
+                            cell.innerHTML = `
+                                <div class="plot-num">${trt.entry}</div>
+                                <div class="trt-name">${trt.name}</div>
+                            `;
+                            plotsContainer.appendChild(cell);
+                        });
+
+                        blockRow.appendChild(plotsContainer);
+                        blocksGrid.appendChild(blockRow);
                     });
 
-                    blockRow.appendChild(plotsContainer);
-                    blocksGrid.appendChild(blockRow);
+                    repGroup.appendChild(blocksGrid);
+                    locDiv.appendChild(repGroup);
                 });
-
-                repGroup.appendChild(blocksGrid);
-                locDiv.appendChild(repGroup);
+                mapContainer.appendChild(locDiv);
             });
-            mapContainer.appendChild(locDiv);
-        });
+        }
     }
 
     exportCSV() {
@@ -220,31 +256,14 @@ class RectangularLatticeGenerator {
         a.download = 'Rectangular_Lattice_FieldBook.csv';
         a.click();
     }
-
-    copyToClipboard() {
-        if (!this.fieldBookData) return;
-        let text = 'Plot\tRep\tBlock\tEntry\tName\n';
-        this.fieldBookData.forEach(row => {
-            text += `${row.plot}\t${row.rep}\t${row.iblock}\t${row.entry}\t${row.name}\n`;
-        });
-        navigator.clipboard.writeText(text).then(() => alert('Copied to clipboard!'));
-    }
-
-    downloadMap() {
-        const container = document.getElementById('map-container');
-        html2canvas(container, {
-            backgroundColor: '#1e293b',
-            scale: 2,
-            padding: 20
-        }).then(canvas => {
-            const link = document.createElement('a');
-            link.download = 'Rectangular_Lattice_Map.png';
-            link.href = canvas.toDataURL();
-            link.click();
-        });
-    }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    window.app = new RectangularLatticeGenerator();
+    try {
+        if (document.getElementById('generate-btn')) {
+            window.app = new RectangularLatticeGenerator();
+        }
+    } catch (e) {
+        console.error("Rectangular Lattice Init Error", e);
+    }
 });

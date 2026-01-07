@@ -2,28 +2,48 @@
  * Split-Split Plot Design Logic
  * premium implementation for Research Hub
  */
+'use strict';
 
 class SplitSplitPlotDesign {
     constructor() {
         this.initEventListeners();
         this.mulberry = null;
+        this.lastData = null;
+        this.lastInfo = null;
     }
 
     initEventListeners() {
-        document.getElementById('generate-btn').addEventListener('click', () => this.generate());
-        document.getElementById('export-btn').addEventListener('click', () => this.exportCSV());
-//         document.getElementById('copy-btn').addEventListener('click', () => this.copyToClipboard());
-//         document.getElementById('download-map-btn').addEventListener('click', () => this.downloadMap());
-// 
-//         // Tab Switching
-//         document.querySelectorAll('.tab').forEach(tab => {
-//             tab.addEventListener('click', () => {
-//                 document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-//                 document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-//                 tab.classList.add('active');
-//                 document.getElementById(tab.dataset.tab).classList.add('active');
-//             });
-        });
+        const genBtn = document.getElementById('generate-btn');
+        const expBtn = document.getElementById('export-btn');
+
+        if (genBtn) {
+            genBtn.addEventListener('click', () => {
+                try {
+                    this.generate();
+                } catch (e) {
+                    console.error(e);
+                    alert("Error: " + e.message);
+                }
+            });
+        }
+
+        if (expBtn) {
+            expBtn.addEventListener('click', () => this.exportCSV());
+        }
+
+        const tabs = document.querySelectorAll('.tab');
+        if (tabs) {
+            tabs.forEach(tab => {
+                tab.addEventListener('click', () => {
+                    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                    tab.classList.add('active');
+                    const targetId = tab.getAttribute('data-tab');
+                    const content = document.getElementById(targetId);
+                    if (content) content.classList.add('active');
+                });
+            });
+        }
     }
 
     mulberry32(a) {
@@ -47,21 +67,33 @@ class SplitSplitPlotDesign {
         if (!val) return [];
         if (!isNaN(val) && val.toString().indexOf(',') === -1) {
             const count = parseInt(val);
+            if (isNaN(count)) return [];
             return Array.from({ length: count }, (_, i) => `${defaultPrefix}-${i + 1}`);
         }
         return val.split(',').map(s => s.trim()).filter(s => s.length > 0);
     }
 
     generate() {
-        // Inputs
-        const type = parseInt(document.getElementById('type-input').value);
-        const wpInput = document.getElementById('wp-input').value;
-        const spInput = document.getElementById('sp-input').value;
-        const sspInput = document.getElementById('ssp-input').value;
-        const reps = parseInt(document.getElementById('reps-input').value);
-        const lCount = parseInt(document.getElementById('loc-input').value);
-        const startPlot = parseInt(document.getElementById('plot-input').value);
-        let seed = parseInt(document.getElementById('seed-input').value);
+        const typeEl = document.getElementById('type-input');
+        const wpInputEl = document.getElementById('wp-input');
+        const spInputEl = document.getElementById('sp-input');
+        const sspInputEl = document.getElementById('ssp-input');
+        const repsInputEl = document.getElementById('reps-input');
+        const locInputEl = document.getElementById('loc-input');
+        const plotInputEl = document.getElementById('plot-input');
+        const seedInputEl = document.getElementById('seed-input');
+
+        if (!typeEl || !wpInputEl || !spInputEl || !sspInputEl) return;
+
+        const type = parseInt(typeEl.value);
+        const wpInput = wpInputEl.value;
+        const spInput = spInputEl.value;
+        const sspInput = sspInputEl.value;
+        const reps = parseInt(repsInputEl.value);
+        const lCount = parseInt(locInputEl.value);
+        const startPlot = parseInt(plotInputEl.value);
+        const rawSeed = seedInputEl.value;
+        let seed = (rawSeed !== "" && rawSeed !== null) ? parseInt(rawSeed) : Math.floor(Math.random() * 999999);
 
         if (isNaN(seed)) seed = Math.floor(Math.random() * 999999);
         this.mulberry = this.mulberry32(seed);
@@ -85,8 +117,7 @@ class SplitSplitPlotDesign {
             let plotCounter = startPlot + (l - 1) * 1000;
 
             for (let r = 1; r <= reps; r++) {
-                // Whole Plot Randomization (RCBD or CRD for factor A)
-                // For SSPD, factor A is usually randomized in blocks (reps)
+                // Whole Plot Randomization 
                 const randomizedWPs = this.shuffle([...wholePlots]);
 
                 randomizedWPs.forEach(wp => {
@@ -131,30 +162,32 @@ class SplitSplitPlotDesign {
 
     render() {
         const results = document.getElementById('results');
-        results.style.display = 'block';
+        if (results) results.style.display = 'block';
 
         // Summary Info
-        document.getElementById('info-type').innerText = this.lastInfo.type === 2 ? "RCBD" : "CRD";
-        document.getElementById('info-factors').innerText = `${this.lastInfo.wpCount} WP × ${this.lastInfo.spCount} SP × ${this.lastInfo.sspCount} SSP`;
-        document.getElementById('info-total').innerText = this.lastInfo.totalCombinations;
+        if (document.getElementById('info-type')) document.getElementById('info-type').innerText = this.lastInfo.type === 2 ? "RCBD" : "CRD";
+        if (document.getElementById('info-factors')) document.getElementById('info-factors').innerText = `${this.lastInfo.wpCount} WP × ${this.lastInfo.spCount} SP × ${this.lastInfo.sspCount} SSP`;
+        if (document.getElementById('info-total')) document.getElementById('info-total').innerText = this.lastInfo.totalCombinations;
 
         // Table
         const tbody = document.querySelector('#field-book-table tbody');
-        tbody.innerHTML = '';
-        this.lastData.forEach(row => {
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td>${row.id}</td>
-                <td>${row.location}</td>
-                <td>${row.plot}</td>
-                <td>${row.rep}</td>
-                <td>${row.wp}</td>
-                <td>${row.sp}</td>
-                <td>${row.ssp}</td>
-                <td><span style="color: var(--primary); font-weight: 600;">${row.combo}</span></td>
-            `;
-            tbody.appendChild(tr);
-        });
+        if (tbody && this.lastData) {
+            tbody.innerHTML = '';
+            this.lastData.forEach(row => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${row.id}</td>
+                    <td>${row.location}</td>
+                    <td>${row.plot}</td>
+                    <td>${row.rep}</td>
+                    <td>${row.wp}</td>
+                    <td>${row.sp}</td>
+                    <td>${row.ssp}</td>
+                    <td><span style="color: var(--primary); font-weight: 600;">${row.combo}</span></td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
 
         // Map
         this.renderMap();
@@ -162,6 +195,7 @@ class SplitSplitPlotDesign {
 
     renderMap() {
         const container = document.getElementById('map-container');
+        if (!container || !this.lastData) return;
         container.innerHTML = '';
 
         const locations = [...new Set(this.lastData.map(d => d.location))];
@@ -237,27 +271,14 @@ class SplitSplitPlotDesign {
         a.download = 'split_split_plot_design.csv';
         a.click();
     }
-
-    copyToClipboard() {
-        if (!this.lastData) return;
-        let text = "ID\tLOCATION\tPLOT\tREP\tWHOLE_PLOT\tSUB_PLOT\tSUB_SUB_PLOT\tTRT_COMB\n";
-        this.lastData.forEach(r => {
-            text += `${r.id}\t${r.location}\t${r.plot}\t${r.rep}\t${r.wp}\t${r.sp}\t${r.ssp}\t${r.combo}\n`;
-        });
-        navigator.clipboard.writeText(text).then(() => alert("Field book copied back to clipboard!"));
-    }
-
-    downloadMap() {
-        const map = document.getElementById('map-container');
-        html2canvas(map, { backgroundColor: '#1f2122' }).then(canvas => {
-            const link = document.createElement('a');
-            link.download = 'split_split_field_map.png';
-            link.href = canvas.toDataURL();
-            link.click();
-        });
-    }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    new SplitSplitPlotDesign();
+    try {
+        if (document.getElementById('generate-btn')) {
+            new SplitSplitPlotDesign();
+        }
+    } catch (e) {
+        console.error("Split Split Plot Init Error", e);
+    }
 });

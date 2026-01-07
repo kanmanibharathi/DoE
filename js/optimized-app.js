@@ -2,6 +2,7 @@
  * Optimized Un-replicated Arrangement
  * Heuristic spatial optimization for maximizing check distance.
  */
+'use strict';
 
 class OptimizedArrangement {
     constructor(rows, cols, lines, amountChecks, numChecks, planter = 'serpentine', seed = null) {
@@ -11,7 +12,9 @@ class OptimizedArrangement {
         this.amountChecks = parseInt(amountChecks);
         this.numChecks = parseInt(numChecks); // number of distinct check varieties
         this.planter = planter;
-        this.seed = seed || Math.floor(Math.random() * 1000000);
+
+        let s = seed;
+        this.seed = (s !== null && s !== undefined && !isNaN(s)) ? parseInt(s) : Math.floor(Math.random() * 1000000);
 
         this.matrix = []; // [row][col]
         this.fieldBook = [];
@@ -139,122 +142,158 @@ class OptimizedArrangement {
 
 // UI Controller
 document.addEventListener('DOMContentLoaded', () => {
-    const generateBtn = document.getElementById('generate-btn');
-    const resultsSection = document.getElementById('results');
-    const gridContainer = document.getElementById('grid-container');
-    const fbTableBody = document.querySelector('#fb-table tbody');
-    const tabs = document.querySelectorAll('.tab');
+    try {
+        const generateBtn = document.getElementById('generate-btn');
+        const resultsSection = document.getElementById('results');
+        const gridContainer = document.getElementById('grid-container');
+        const fbTableBody = document.querySelector('#fb-table tbody');
+        const tabs = document.querySelectorAll('.tab');
+        const exportCsvBtn = document.getElementById('export-csv');
+        const downloadPngBtn = document.getElementById('download-png');
 
-    let currentDesign = null;
+        let currentDesign = null;
 
-    generateBtn.addEventListener('click', () => {
-        const rows = document.getElementById('rows-input').value;
-        const cols = document.getElementById('cols-input').value;
-        const lines = document.getElementById('lines-input').value;
-        const amountChecks = document.getElementById('amount-checks').value;
-        const numChecks = document.getElementById('checks-variants').value;
-        const planter = document.getElementById('planter-input').value;
-        const seed = parseInt(document.getElementById('seed-input').value) || null;
+        if (generateBtn) {
+            generateBtn.addEventListener('click', () => {
+                try {
+                    const rowsEl = document.getElementById('rows-input');
+                    const colsEl = document.getElementById('cols-input');
+                    const linesEl = document.getElementById('lines-input');
+                    const amountChecksEl = document.getElementById('amount-checks');
+                    const numChecksEl = document.getElementById('checks-variants');
+                    const planterEl = document.getElementById('planter-input');
+                    const seedEl = document.getElementById('seed-input');
 
-        try {
-            const design = new OptimizedArrangement(rows, cols, lines, amountChecks, numChecks, planter, seed);
-            const data = design.generate();
-            currentDesign = design;
+                    if (!rowsEl || !colsEl || !linesEl) return;
 
-            // Update UI
-            document.getElementById('stat-plots').textContent = rows * cols;
-            document.getElementById('stat-fillers').textContent = (rows * cols) - lines - amountChecks;
-            document.getElementById('stat-score').textContent = "94.2%"; // Placeholder for spatial score
+                    const rows = rowsEl.value;
+                    const cols = colsEl.value;
+                    const lines = linesEl.value;
+                    const amountChecks = amountChecksEl.value;
+                    const numChecks = numChecksEl.value;
+                    const planter = planterEl.value;
 
-            renderGrid(design);
-            renderTable(data);
+                    let seed = null;
+                    if (seedEl && seedEl.value !== "") seed = parseInt(seedEl.value);
 
-            resultsSection.style.display = 'block';
-            resultsSection.scrollIntoView({ behavior: 'smooth' });
+                    const design = new OptimizedArrangement(rows, cols, lines, amountChecks, numChecks, planter, seed);
+                    const data = design.generate();
+                    currentDesign = design;
 
-        } catch (e) {
-            alert(e.message);
+                    // Update UI
+                    if (document.getElementById('stat-plots')) document.getElementById('stat-plots').textContent = rows * cols;
+                    if (document.getElementById('stat-fillers')) document.getElementById('stat-fillers').textContent = (rows * cols) - lines - amountChecks;
+                    if (document.getElementById('stat-score')) document.getElementById('stat-score').textContent = "94.2%"; // Placeholder for spatial score
+
+                    renderGrid(design);
+                    renderTable(data);
+
+                    if (resultsSection) {
+                        resultsSection.style.display = 'block';
+                        resultsSection.scrollIntoView({ behavior: 'smooth' });
+                    }
+
+                } catch (e) {
+                    alert(e.message);
+                }
+            });
         }
-    });
 
-    function renderGrid(design) {
-        gridContainer.innerHTML = '';
-        gridContainer.style.gridTemplateColumns = `repeat(${design.cols}, 45px)`;
+        function renderGrid(design) {
+            if (!gridContainer) return;
+            gridContainer.innerHTML = '';
+            gridContainer.style.gridTemplateColumns = `repeat(${design.cols}, 45px)`;
 
-        // Render from top row (r = rows-1) to bottom (r = 0) or standard?
-        // Standard Field Hub usually renders Row 1 at bottom for physical map consistency.
-        for (let r = design.rows - 1; r >= 0; r--) {
-            for (let c = 0; c < design.cols; c++) {
-                const item = design.matrix[r][c];
-                const cell = document.createElement('div');
-                cell.className = `cell ${item.type.toLowerCase()}`;
+            // Render from top row (r = rows-1) to bottom (r = 0) or standard?
+            // Standard Field Hub usually renders Row 1 at bottom for physical map consistency.
+            for (let r = design.rows - 1; r >= 0; r--) {
+                for (let c = 0; c < design.cols; c++) {
+                    const item = design.matrix[r][c];
+                    const cell = document.createElement('div');
+                    cell.className = `cell ${item.type.toLowerCase()}`;
 
-                // Find plot number for this cell
-                const plotInfo = design.fieldBook.find(fb => fb.row === r + 1 && fb.col === c + 1);
+                    // Find plot number for this cell
+                    const plotInfo = design.fieldBook.find(fb => fb.row === r + 1 && fb.col === c + 1);
 
-                cell.innerHTML = `
-                    <div class="p-num">${plotInfo.plot}</div>
-                    ${item.id !== 0 ? item.id : '-'}
-                `;
-                cell.title = `Row ${r + 1}, Col ${c + 1} | ${item.type}: ${item.name}`;
-                gridContainer.appendChild(cell);
+                    cell.innerHTML = `
+                        <div class="p-num">${plotInfo.plot}</div>
+                        ${item.id !== 0 ? item.id : '-'}
+                    `;
+                    cell.title = `Row ${r + 1}, Col ${c + 1} | ${item.type}: ${item.name}`;
+                    gridContainer.appendChild(cell);
+                }
             }
         }
+
+        function renderTable(data) {
+            if (!fbTableBody) return;
+            fbTableBody.innerHTML = '';
+            data.forEach(row => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${row.plot}</td>
+                    <td>${row.row}</td>
+                    <td>${row.col}</td>
+                    <td>${row.entryId}</td>
+                    <td style="font-weight: 600;">${row.name}</td>
+                    <td><small>${row.type}</small></td>
+                `;
+                fbTableBody.appendChild(tr);
+            });
+        }
+
+        // Tabs
+        tabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                const target = tab.getAttribute('data-tab');
+                if (!target) return;
+
+                tabs.forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                const targetEl = document.getElementById(target);
+                if (targetEl) targetEl.classList.add('active');
+            });
+        });
+
+        // Exports
+        if (exportCsvBtn) {
+            exportCsvBtn.addEventListener('click', () => {
+                if (!currentDesign) return;
+                const headers = ["Plot", "Row", "Col", "Entry", "Name", "Type"];
+                const csv = [headers.join(",")];
+                currentDesign.fieldBook.forEach(row => {
+                    csv.push([row.plot, row.row, row.col, row.entryId, row.name, row.type].join(","));
+                });
+                const blob = new Blob([csv.join("\n")], { type: 'text/csv' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `optimized_design_${Date.now()}.csv`;
+                a.click();
+            });
+        }
+
+        if (downloadPngBtn) {
+            downloadPngBtn.addEventListener('click', () => {
+                const container = document.getElementById('map-capture');
+                if (!container || typeof html2canvas === 'undefined') {
+                    alert("Map container missing or library error");
+                    return;
+                }
+                html2canvas(container, {
+                    backgroundColor: null,
+                    scale: 3
+                }).then(canvas => {
+                    const a = document.createElement('a');
+                    a.download = `optimized_field_map_${Date.now()}.png`;
+                    a.href = canvas.toDataURL();
+                    a.click();
+                });
+            });
+        }
+    } catch (e) {
+        console.error("Optimized App Init Error", e);
     }
-
-    function renderTable(data) {
-        fbTableBody.innerHTML = '';
-        data.forEach(row => {
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td>${row.plot}</td>
-                <td>${row.row}</td>
-                <td>${row.col}</td>
-                <td>${row.entryId}</td>
-                <td style="font-weight: 600;">${row.name}</td>
-                <td><small>${row.type}</small></td>
-            `;
-            fbTableBody.appendChild(tr);
-        });
-    }
-
-    // Tabs
-    tabs.forEach(tab => {
-        tab.addEventListener('click', () => {
-            tabs.forEach(t => t.classList.remove('active'));
-            tab.classList.add('active');
-            const target = tab.getAttribute('data-tab');
-            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-            document.getElementById(target).classList.add('active');
-        });
-    });
-
-    // Exports
-    document.getElementById('export-csv').addEventListener('click', () => {
-        if (!currentDesign) return;
-        const headers = ["Plot", "Row", "Col", "Entry", "Name", "Type"];
-        const csv = [headers.join(",")];
-        currentDesign.fieldBook.forEach(row => {
-            csv.push([row.plot, row.row, row.col, row.entryId, row.name, row.type].join(","));
-        });
-        const blob = new Blob([csv.join("\n")], { type: 'text/csv' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `optimized_design_${Date.now()}.csv`;
-        a.click();
-    });
-
-    document.getElementById('download-png').addEventListener('click', () => {
-        const container = document.getElementById('map-capture');
-        html2canvas(container, {
-            backgroundColor: null,
-            scale: 3
-        }).then(canvas => {
-            const a = document.createElement('a');
-            a.download = `optimized_field_map_${Date.now()}.png`;
-            a.href = canvas.toDataURL();
-            a.click();
-        });
-    });
 });

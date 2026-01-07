@@ -11,7 +11,8 @@ class AlphaLattice {
         this.r = parseInt(r); // Replicates
         this.l = parseInt(l); // Locations
         this.s = this.t / this.k; // Blocks per replicate
-        this.seed = seed || Math.floor(Math.random() * 10000);
+        // If seed is 0, we want to allow it, so check for null/undefined explicitly or use provided value
+        this.seed = (seed !== null && seed !== undefined && !isNaN(seed)) ? seed : Math.floor(Math.random() * 10000);
 
         this.fieldBook = [];
         this.info = {};
@@ -60,7 +61,6 @@ class AlphaLattice {
             });
 
             // Randomize initial treatment assignment to the design structure
-            // This prevents systematic bias (e.g. Trt 1 always being in Block 1 Rep 1)
             this.shuffle(treatments, random);
 
             for (let rep = 1; rep <= this.r; rep++) {
@@ -73,10 +73,7 @@ class AlphaLattice {
                         const trtIdx = i + (this.s * j);
                         const trt = treatments[trtIdx];
 
-                        // Shift rule: blockIdx = (i + shift) % s
-                        // For rep 1: shift = 0
-                        // For rep 2: shift = j
-                        // For rep 3: shift = 2j (if possible)
+                        // Shift rule
                         let shift = 0;
                         if (rep > 1) {
                             shift = (rep - 1) * j;
@@ -99,9 +96,6 @@ class AlphaLattice {
                         // Plot Numbering Logic
                         let plotNum;
                         if (layout === 'serpentine') {
-                            // If block is even, number normally; if odd, number in reverse within block? 
-                            // Actually properly: row = block, col = unit
-                            // In field, if block index is even, go 1->k. If odd, go k->1.
                             if (displayBlockNum % 2 === 0) {
                                 plotNum = startPlot + (rep - 1) * 1000 + (displayBlockNum * this.k) + unitInBlock;
                             } else {
@@ -157,10 +151,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const generateBtn = document.getElementById('generate-btn');
     const simulateBtn = document.getElementById('simulate-btn');
     const exportBtn = document.getElementById('export-btn');
-    const copyBtn = document.getElementById('copy-btn');
+    // const copyBtn = document.getElementById('copy-btn'); // Not used in HTML
     const resultsSection = document.getElementById('results');
     const fbTableBody = document.querySelector('#field-book-table tbody');
     const mapContainer = document.getElementById('map-container');
+    const downloadMapBtn = document.getElementById('download-map-btn');
     const tabs = document.querySelectorAll('.tab');
 
     const tInput = document.getElementById('t-input');
@@ -175,70 +170,90 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentDesignObj = null;
 
     // Auto-suggest k based on divisors of t
-    tInput.addEventListener('change', () => {
-        const t = parseInt(tInput.value);
-        const divisors = [];
-        for (let i = 2; i <= Math.sqrt(t); i++) {
-            if (t % i === 0) {
-                divisors.push(i);
-                if (i * i !== t) divisors.push(t / i);
-            }
-        }
-        divisors.sort((a, b) => a - b);
-
-        if (divisors.length > 0) {
-            // Pick a divisor close to sqrt(t)
-            const target = Math.sqrt(t);
-            let best = divisors[0];
-            divisors.forEach(d => {
-                if (Math.abs(d - target) < Math.abs(best - target)) best = d;
-            });
-            kInput.value = best;
-        }
-    });
-
-    generateBtn.addEventListener('click', () => {
-        try {
+    if (tInput) {
+        tInput.addEventListener('change', () => {
             const t = parseInt(tInput.value);
-            const k = parseInt(kInput.value);
-            const r = parseInt(rInput.value);
-            const l = parseInt(lInput.value);
-            const startPlot = parseInt(plotInput.value);
-            const seed = seedInput.value ? parseInt(seedInput.value) : Math.floor(Math.random() * 100000);
-            const layout = layoutInput.value;
+            const divisors = [];
+            for (let i = 2; i <= Math.sqrt(t); i++) {
+                if (t % i === 0) {
+                    divisors.push(i);
+                    if (i * i !== t) divisors.push(t / i);
+                }
+            }
+            divisors.sort((a, b) => a - b);
 
-            const customNames = trtNamesArea.value ? trtNamesArea.value.split('\n').map(n => n.trim()).filter(n => n !== "") : [];
+            if (divisors.length > 0) {
+                // Pick a divisor close to sqrt(t)
+                const target = Math.sqrt(t);
+                let best = divisors[0];
+                divisors.forEach(d => {
+                    if (Math.abs(d - target) < Math.abs(best - target)) best = d;
+                });
+                if (kInput) kInput.value = best;
+            }
+        });
+    }
 
-            const design = new AlphaLattice(t, k, r, l, seed);
-            design.generate(startPlot, customNames, layout);
-            currentDesignObj = design;
+    if (generateBtn) {
+        generateBtn.addEventListener('click', () => {
+            try {
+                const t = parseInt(tInput.value);
+                const k = parseInt(kInput.value);
+                const r = parseInt(rInput.value);
+                const l = parseInt(lInput.value);
+                const startPlot = parseInt(plotInput.value);
+                // Handle seed input correctly: if empty, random; if 0, use 0
+                const rawSeed = seedInput.value;
+                const seed = (rawSeed !== "" && rawSeed !== null) ? parseInt(rawSeed) : Math.floor(Math.random() * 100000);
+                const layout = layoutInput.value;
 
-            updateUI(design);
-            resultsSection.style.display = 'block';
-            simulateBtn.style.display = 'block';
-            resultsSection.scrollIntoView({ behavior: 'smooth' });
+                const customNames = trtNamesArea.value ? trtNamesArea.value.split('\n').map(n => n.trim()).filter(n => n !== "") : [];
 
-        } catch (error) {
-            alert(error.message);
-        }
-    });
+                const design = new AlphaLattice(t, k, r, l, seed);
+                design.generate(startPlot, customNames, layout);
+                currentDesignObj = design;
 
-    simulateBtn.addEventListener('click', () => {
-        if (!currentDesignObj) return;
-        const data = currentDesignObj.simulate();
-        renderTable(data);
-        alert("Simulation successful! Yield data added to field book.");
-    });
+                updateUI(design);
+
+                // Show results
+                if (resultsSection) {
+                    resultsSection.style.display = 'block';
+                    resultsSection.scrollIntoView({ behavior: 'smooth' });
+                }
+
+                if (simulateBtn) simulateBtn.style.display = 'block';
+
+            } catch (error) {
+                console.error("Design Generation Error:", error);
+                alert("Error: " + error.message);
+            }
+        });
+    }
+
+    if (simulateBtn) {
+        simulateBtn.addEventListener('click', () => {
+            if (!currentDesignObj) return;
+            const data = currentDesignObj.simulate();
+            renderTable(data);
+            alert("Simulation successful! Yield data added to field book.");
+        });
+    }
 
     function updateUI(design) {
-        document.getElementById('info-s').textContent = design.s;
-        document.getElementById('info-eff').textContent = design.info.efficiency;
-        document.getElementById('info-total').textContent = design.info.totalUnits;
+        const infoS = document.getElementById('info-s');
+        const infoEff = document.getElementById('info-eff');
+        const infoTotal = document.getElementById('info-total');
+
+        if (infoS) infoS.textContent = design.s;
+        if (infoEff) infoEff.textContent = design.info.efficiency;
+        if (infoTotal) infoTotal.textContent = design.info.totalUnits;
+
         renderTable(design.fieldBook);
         renderMap(design);
     }
 
     function renderTable(data) {
+        if (!fbTableBody) return;
         fbTableBody.innerHTML = '';
         data.forEach(row => {
             const tr = document.createElement('tr');
@@ -251,9 +266,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td><span style="color: #2ecc71; font-weight: 600;">${row.trtName}</span></td>
                 ${row.yield ? `<td>${row.yield}</td>` : ''}
             `;
-            // Add header for yield if not exists
+            // Add header for yield if not exists and data has yield
             const headerRow = document.querySelector('#field-book-table thead tr');
-            if (row.yield && headerRow.cells.length < 7) {
+            if (row.yield && headerRow && headerRow.cells.length < 7) {
                 const th = document.createElement('th');
                 th.textContent = "Yield";
                 headerRow.appendChild(th);
@@ -263,6 +278,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderMap(design) {
+        if (!mapContainer) return;
         mapContainer.innerHTML = '';
         const data = design.fieldBook;
         const s = design.s;
@@ -270,7 +286,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const reps = [...new Set(data.map(d => d.replicate))];
         reps.forEach(repNum => {
-            const repData = data.filter(d => d.replicate === repNum && d.location === 'Loc 1');
+            // Filter only Loc 1 for visualization if multiple exists
+            const repData = data.filter(d => d.replicate === repNum && (d.location === 'Loc 1' || d.location.endsWith(' 1')));
+            // Only show map for Loc 1 to avoid clutter? Or show all?
+            // Existing logic showed only Loc 1. If Loc > 1, maybe show first loc only.
+
             const repBox = document.createElement('div');
             repBox.className = 'replicate-box';
 
@@ -314,65 +334,50 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Export & Copy logic (updated for extra columns)
-    exportBtn.addEventListener('click', () => {
-        if (!currentDesignObj) return;
-        const data = currentDesignObj.fieldBook;
-        const headers = ["Plot", "Location", "Replicate", "Block", "Unit", "TreatmentID", "TreatmentName"];
-        if (data[0].yield) headers.push("Yield");
+    // Export logic
+    if (exportBtn) {
+        exportBtn.addEventListener('click', () => {
+            if (!currentDesignObj) return;
+            const data = currentDesignObj.fieldBook;
+            const headers = ["Plot", "Location", "Replicate", "Block", "Unit", "TreatmentID", "TreatmentName"];
+            if (data[0].yield) headers.push("Yield");
 
-        const csv = [
-            headers.join(","),
-            ...data.map(r => {
-                const row = [r.plot, r.location, r.replicate, r.block, r.unit, r.trtId, r.trtName];
-                if (r.yield) row.push(r.yield);
-                return row.join(",");
-            })
-        ].join("\n");
+            const csv = [
+                headers.join(","),
+                ...data.map(r => {
+                    const row = [r.plot, r.location, r.replicate, r.block, r.unit, r.trtId, r.trtName];
+                    if (r.yield) row.push(r.yield);
+                    return row.join(",");
+                })
+            ].join("\n");
 
-        const blob = new Blob([csv], { type: 'text/csv' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `alpha_lattice_${Date.now()}.csv`;
-        a.click();
-    });
-
-//     copyBtn.addEventListener('click', () => {
-//         if (!currentDesignObj) return;
-//         const data = currentDesignObj.fieldBook;
-//         const headers = ["Plot", "Location", "Replicate", "Block", "Unit", "TreatmentID", "TreatmentName"];
-//         if (data[0].yield) headers.push("Yield");
-// 
-//         const tsv = [
-//             headers.join("\t"),
-//             ...data.map(r => {
-//                 const row = [r.plot, r.location, r.replicate, r.block, r.unit, r.trtId, r.trtName];
-//                 if (r.yield) row.push(r.yield);
-//                 return row.join("\t");
-//             })
-//         ].join("\n");
-// 
-//         navigator.clipboard.writeText(tsv).then(() => {
-//             const originalText = copyBtn.innerHTML;
-//             copyBtn.innerHTML = '<i class="fas fa-check"></i> Copied!';
-//             setTimeout(() => copyBtn.innerHTML = originalText, 2000);
-//         });
-    });
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `alpha_lattice_${Date.now()}.csv`;
+            a.click();
+        });
+    }
 
     // Download Map Image
-    const downloadMapBtn = document.getElementById('download-map-btn');
     if (downloadMapBtn) {
         downloadMapBtn.addEventListener('click', () => {
+            if (typeof html2canvas === 'undefined') {
+                alert("html2canvas library not loaded. Cannot export image.");
+                return;
+            }
+
             const btn = downloadMapBtn;
             const oldText = btn.innerHTML;
             btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Rendering...';
             btn.disabled = true;
 
             html2canvas(document.getElementById('map-container'), {
-                backgroundColor: "#1f2122", // New dark theme BG
+                backgroundColor: "#1f2122",
                 scale: 2,
-                logging: false
+                logging: false,
+                useCORS: true
             }).then(canvas => {
                 const link = document.createElement('a');
                 link.download = `alpha_lattice_map_${Date.now()}.png`;
@@ -390,13 +395,20 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Tab logic
-    tabs.forEach(tab => {
-        tab.addEventListener('click', () => {
-            tabs.forEach(t => t.classList.remove('active'));
-            tab.classList.add('active');
-            const target = tab.getAttribute('data-tab');
-            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-            document.getElementById(target).classList.add('active');
+    if (tabs) {
+        tabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                const target = tab.getAttribute('data-tab');
+                const targetContent = document.getElementById(target);
+
+                if (targetContent) {
+                    tabs.forEach(t => t.classList.remove('active'));
+                    tab.classList.add('active');
+
+                    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                    targetContent.classList.add('active');
+                }
+            });
         });
-    });
+    }
 });

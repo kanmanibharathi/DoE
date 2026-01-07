@@ -2,6 +2,7 @@
  * Resolvable Incomplete Block Design (IBD) Logic
  * Enhanced with Efficiency Estimation and Re-randomization
  */
+'use strict';
 
 class IBDGenerator {
     constructor(t, k, r, locations, seed = null) {
@@ -9,11 +10,12 @@ class IBDGenerator {
         this.k = parseInt(k);
         this.r = parseInt(r);
         this.L = parseInt(locations);
-        this.seed = seed || Math.floor(Math.random() * 1000000);
+        this.seed = (seed !== null && seed !== undefined && !isNaN(seed)) ? seed : Math.floor(Math.random() * 1000000);
 
         this.fieldBook = [];
         this.info = {};
         this.treatments = Array.from({ length: this.t }, (_, i) => i + 1);
+        this.designStructure = [];
     }
 
     mulberry32(a) {
@@ -78,7 +80,6 @@ class IBDGenerator {
             this.designStructure.push(siteDesigns);
         }
 
-        // Calculate Efficiencies (based on first location as they are identical replicates of randomization)
         const efficiencies = this.calculateEfficiencies();
 
         this.info = {
@@ -111,24 +112,18 @@ class IBDGenerator {
             row.treatment = `G-${newTrt}`;
         });
 
-        // Efficiencies don't change if the structure is just relabeled
-        // But since generate() creates random blocks, we usually want to re-run generate if we want a DIFFERENT structure.
-        // However, the user request for "rerandomize_ibd" implies just mapping.
-        // If we want a different design structure, we change the seed.
         return this.fieldBook;
     }
 
-    // Incidence-based Efficiency Calculation
     calculateEfficiencies() {
         const t = this.t;
         const r = this.r;
         const k = this.k;
-        const s = t / k;
 
-        // Use the first site's structure
+        if (!this.designStructure || this.designStructure.length === 0) return { aEff: 0, dEff: 0 };
         const design = this.designStructure[0];
 
-        // 1. Build N (t x b) matrix, where b = r * s
+        // 1. Build N (t x b) matrix, where b = r * s (blocks across all reps)
         // But we actually need NN' (t x t)
         // (NN')_ij = count of blocks containing both i and j
         const lambda = Array.from({ length: t }, () => new Float64Array(t).fill(0));
@@ -143,10 +138,6 @@ class IBDGenerator {
             });
         });
 
-        // 2. Information Matrix C = R - N K^-1 N'
-        // For resolvable designs with constant r and k:
-        // C_ii = r - r/k = r(k-1)/k
-        // C_ij = -lambda_ij / k
         const C = Array.from({ length: t }, () => new Float64Array(t));
         for (let i = 0; i < t; i++) {
             for (let j = 0; j < t; j++) {
@@ -158,32 +149,26 @@ class IBDGenerator {
             }
         }
 
-        // 3. Eigenvalues of C
         const eigs = this.getEigenvalues(C);
-
-        // Filter out the zero eigenvalue (due to row sums = 0)
-        // Sort and take the t-1 largest
         eigs.sort((a, b) => b - a);
         const activeEigs = eigs.slice(0, t - 1);
-
-        // 4. Efficiency Factors e_h = mu_h / r
         const effFactors = activeEigs.map(mu => mu / r);
 
-        // A-Efficiency = (t-1) / sum(1/e_h)
         let sumInv = 0;
         let sumLog = 0;
         effFactors.forEach(e => {
-            sumInv += 1 / e;
-            sumLog += Math.log(e);
+            if (e > 1e-9) {
+                sumInv += 1 / e;
+                sumLog += Math.log(e);
+            }
         });
 
         const aEff = (t - 1) / sumInv;
         const dEff = Math.exp(sumLog / (t - 1));
 
-        return { aEff, dEff };
+        return { aEff: isFinite(aEff) ? aEff : 0, dEff: isFinite(dEff) ? dEff : 0 };
     }
 
-    // Jacobi Eigenvalue Algorithm for Symmetric Matrices
     getEigenvalues(M) {
         const n = M.length;
         const A = M.map(row => new Float64Array(row));
@@ -194,7 +179,6 @@ class IBDGenerator {
             let maxVal = 0;
             let p = 0, q = 0;
 
-            // Find largest off-diagonal element
             for (let i = 0; i < n; i++) {
                 for (let j = i + 1; j < n; j++) {
                     if (Math.abs(A[i][j]) > maxVal) {
@@ -212,7 +196,6 @@ class IBDGenerator {
             const c = 1 / Math.sqrt(1 + t * t);
             const s = c * t;
 
-            // Rotation
             const app = A[p][p];
             const aqq = A[q][q];
             const apq = A[p][q];
@@ -233,172 +216,201 @@ class IBDGenerator {
                 }
             }
         }
-
         return A.map((row, i) => row[i]);
     }
 }
 
 // UI Controller
 document.addEventListener('DOMContentLoaded', () => {
-    const generateBtn = document.getElementById('generate-btn');
-    const rerandBtn = document.getElementById('rerand-btn');
-    const resultsSection = document.getElementById('results');
-    const fbTableBody = document.querySelector('#fb-table tbody');
-    const locContainer = document.getElementById('loc-container');
-    const tabs = document.querySelectorAll('.tab');
+    try {
+        const generateBtn = document.getElementById('generate-btn');
+        const rerandBtn = document.getElementById('rerand-btn');
+        const resultsSection = document.getElementById('results');
+        const fbTableBody = document.querySelector('#fb-table tbody');
+        const locContainer = document.getElementById('loc-container');
+        const tabs = document.querySelectorAll('.tab');
+        const exportBtn = document.getElementById('export-btn');
+        const dlPngBtn = document.getElementById('download-png');
 
-    let currentGenerator = null;
+        if (!generateBtn) return;
 
-    generateBtn.addEventListener('click', () => {
-        const t = document.getElementById('t-input').value;
-        const k = document.getElementById('k-input').value;
-        const r = document.getElementById('r-input').value;
-        const locs = document.getElementById('loc-input').value;
-        const plotStart = parseInt(document.getElementById('plot-start').value);
-        const seed = parseInt(document.getElementById('seed-input').value) || null;
+        let currentGenerator = null;
 
-        try {
-            const generator = new IBDGenerator(t, k, r, locs, seed);
-            const data = generator.generate(plotStart);
-            currentGenerator = generator;
+        generateBtn.addEventListener('click', () => {
+            const tInput = document.getElementById('t-input');
+            const kInput = document.getElementById('k-input');
+            const rInput = document.getElementById('r-input');
+            const locsInput = document.getElementById('loc-input');
+            const plotStartInput = document.getElementById('plot-start');
+            const seedInput = document.getElementById('seed-input');
 
-            updateSummary(generator);
-            renderFieldMap(generator);
-            renderTable(data);
+            if (!tInput || !kInput || !rInput) return;
 
-            resultsSection.style.display = 'block';
-            rerandBtn.style.display = 'block';
+            const t = tInput.value;
+            const k = kInput.value;
+            const r = rInput.value;
+            const locs = locsInput.value;
+            const plotStart = parseInt(plotStartInput.value);
 
-            resultsSection.scrollIntoView({ behavior: 'smooth' });
+            const rawSeed = seedInput.value;
+            const seed = (rawSeed !== "" && rawSeed !== null) ? parseInt(rawSeed) : null;
 
-        } catch (e) {
-            alert(e.message);
-        }
-    });
+            try {
+                const generator = new IBDGenerator(t, k, r, locs, seed);
+                const data = generator.generate(plotStart);
+                currentGenerator = generator;
 
-    rerandBtn.addEventListener('click', () => {
-        if (!currentGenerator) return;
+                updateSummary(generator);
+                renderFieldMap(generator);
+                renderTable(data);
 
-        // Re-randomize treatments
-        const data = currentGenerator.rerandomize();
-
-        // No need to recalculate efficiencies for simple relabeling
-        // But we need to refresh the views
-        renderFieldMap(currentGenerator);
-        renderTable(data);
-
-        // Flash effect
-        resultsSection.style.opacity = '0.5';
-        setTimeout(() => resultsSection.style.opacity = '1', 200);
-    });
-
-    function updateSummary(gen) {
-        document.getElementById('sum-aeff').textContent = gen.info.aEff;
-        document.getElementById('sum-deff').textContent = gen.info.dEff;
-    }
-
-    function renderFieldMap(gen) {
-        locContainer.innerHTML = '';
-
-        for (let l = 1; l <= gen.L; l++) {
-            const locDiv = document.createElement('div');
-            locDiv.innerHTML = `<h2 style="margin-bottom: 2rem; border-left: 4px solid var(--primary); padding-left: 1rem;">Location ${l}</h2>`;
-
-            for (let r = 1; r <= gen.r; r++) {
-                const repDiv = document.createElement('div');
-                repDiv.className = 'rep-container';
-                repDiv.innerHTML = `<div class="rep-title">Replicate ${r}</div>`;
-
-                const blocksGrid = document.createElement('div');
-                blocksGrid.className = 'blocks-grid';
-
-                const repData = gen.fieldBook.filter(d => d.siteIdx === l && d.rep === r);
-                const s = gen.info.blocksPerRep;
-
-                for (let b = 1; b <= s; b++) {
-                    const blockBox = document.createElement('div');
-                    blockBox.className = 'iblock-box';
-                    blockBox.innerHTML = `<div class="iblock-title">Incomplete Block ${b}</div>`;
-
-                    const unitsGrid = document.createElement('div');
-                    unitsGrid.className = 'units-grid';
-
-                    const blockData = repData.filter(d => d.iblock === b);
-                    blockData.forEach(plot => {
-                        unitsGrid.innerHTML += `
-                            <div class="unit-cell">
-                                <small>P${plot.plot}</small>
-                                ${plot.entry}
-                            </div>
-                        `;
-                    });
-
-                    blockBox.appendChild(unitsGrid);
-                    blocksGrid.appendChild(blockBox);
+                if (resultsSection) {
+                    resultsSection.style.display = 'block';
+                    resultsSection.scrollIntoView({ behavior: 'smooth' });
                 }
+                if (rerandBtn) rerandBtn.style.display = 'block';
 
-                repDiv.appendChild(blocksGrid);
-                locDiv.appendChild(repDiv);
+            } catch (e) {
+                console.error(e);
+                alert("Error: " + e.message);
             }
-            locContainer.appendChild(locDiv);
+        });
+
+        if (rerandBtn) {
+            rerandBtn.addEventListener('click', () => {
+                if (!currentGenerator) return;
+                const data = currentGenerator.rerandomize();
+                renderFieldMap(currentGenerator);
+                renderTable(data);
+                if (resultsSection) {
+                    resultsSection.style.opacity = '0.5';
+                    setTimeout(() => resultsSection.style.opacity = '1', 200);
+                }
+            });
         }
+
+        function updateSummary(gen) {
+            if (document.getElementById('sum-aeff')) document.getElementById('sum-aeff').textContent = gen.info.aEff;
+            if (document.getElementById('sum-deff')) document.getElementById('sum-deff').textContent = gen.info.dEff;
+        }
+
+        function renderFieldMap(gen) {
+            if (!locContainer) return;
+            locContainer.innerHTML = '';
+
+            for (let l = 1; l <= gen.L; l++) {
+                const locDiv = document.createElement('div');
+                locDiv.innerHTML = `<h2 style="margin-bottom: 2rem; border-left: 4px solid var(--primary); padding-left: 1rem;">Location ${l}</h2>`;
+
+                for (let r = 1; r <= gen.r; r++) {
+                    const repDiv = document.createElement('div');
+                    repDiv.className = 'rep-container';
+                    repDiv.innerHTML = `<div class="rep-title">Replicate ${r}</div>`;
+
+                    const blocksGrid = document.createElement('div');
+                    blocksGrid.className = 'blocks-grid';
+
+                    const repData = gen.fieldBook.filter(d => d.siteIdx === l && d.rep === r);
+                    const s = gen.info.blocksPerRep;
+
+                    for (let b = 1; b <= s; b++) {
+                        const blockBox = document.createElement('div');
+                        blockBox.className = 'iblock-box';
+                        blockBox.innerHTML = `<div class="iblock-title">Incomplete Block ${b}</div>`;
+
+                        const unitsGrid = document.createElement('div');
+                        unitsGrid.className = 'units-grid';
+
+                        const blockData = repData.filter(d => d.iblock === b);
+                        blockData.forEach(plot => {
+                            unitsGrid.innerHTML += `
+                                <div class="unit-cell">
+                                    <small>P${plot.plot}</small>
+                                    ${plot.entry}
+                                </div>
+                            `;
+                        });
+
+                        blockBox.appendChild(unitsGrid);
+                        blocksGrid.appendChild(blockBox);
+                    }
+
+                    repDiv.appendChild(blocksGrid);
+                    locDiv.appendChild(repDiv);
+                }
+                locContainer.appendChild(locDiv);
+            }
+        }
+
+        function renderTable(data) {
+            if (!fbTableBody) return;
+            fbTableBody.innerHTML = '';
+            data.forEach(row => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${row.id}</td>
+                    <td>${row.location}</td>
+                    <td>${row.plot}</td>
+                    <td>${row.rep}</td>
+                    <td>${row.iblock}</td>
+                    <td>${row.entry}</td>
+                    <td><strong>${row.treatment}</strong></td>
+                `;
+                fbTableBody.appendChild(tr);
+            });
+        }
+
+        if (tabs) {
+            tabs.forEach(tab => {
+                tab.addEventListener('click', () => {
+                    const targetId = tab.getAttribute('data-tab');
+                    const targetContent = document.getElementById(targetId);
+                    if (targetContent) {
+                        tabs.forEach(t => t.classList.remove('active'));
+                        tab.classList.add('active');
+                        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                        targetContent.classList.add('active');
+                    }
+                });
+            });
+        }
+
+        if (exportBtn) {
+            exportBtn.addEventListener('click', () => {
+                if (!currentGenerator) return;
+                const headers = ["ID", "Location", "Plot", "Rep", "IBlock", "Entry", "Treatment"];
+                const csv = [headers.join(",")];
+                currentGenerator.fieldBook.forEach(row => {
+                    csv.push([row.id, row.location, row.plot, row.rep, row.iblock, row.entry, row.treatment].join(","));
+                });
+                const blob = new Blob([csv.join("\n")], { type: 'text/csv' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `ibd_design_${Date.now()}.csv`;
+                a.click();
+            });
+        }
+
+        if (dlPngBtn) {
+            dlPngBtn.addEventListener('click', () => {
+                const container = document.getElementById('map-capture');
+                if (!container || typeof html2canvas !== 'function') {
+                    alert("Cannot export map.");
+                    return;
+                }
+                html2canvas(container, {
+                    backgroundColor: "#1f2122",
+                    scale: 2
+                }).then(canvas => {
+                    const a = document.createElement('a');
+                    a.download = `ibd_field_map_${Date.now()}.png`;
+                    a.href = canvas.toDataURL();
+                    a.click();
+                });
+            });
+        }
+    } catch (err) {
+        console.error("IBD App Init Error", err);
     }
-
-    function renderTable(data) {
-        fbTableBody.innerHTML = '';
-        data.forEach(row => {
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td>${row.id}</td>
-                <td>${row.location}</td>
-                <td>${row.plot}</td>
-                <td>${row.rep}</td>
-                <td>${row.iblock}</td>
-                <td>${row.entry}</td>
-                <td><strong>${row.treatment}</strong></td>
-            `;
-            fbTableBody.appendChild(tr);
-        });
-    }
-
-    // Tabs functionality
-    tabs.forEach(tab => {
-        tab.addEventListener('click', () => {
-            tabs.forEach(t => t.classList.remove('active'));
-            tab.classList.add('active');
-            const target = tab.getAttribute('data-tab');
-            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-            document.getElementById(target).classList.add('active');
-        });
-    });
-
-    // CSV Export
-    document.getElementById('export-btn').addEventListener('click', () => {
-        if (!currentGenerator) return;
-        const headers = ["ID", "Location", "Plot", "Rep", "IBlock", "Entry", "Treatment"];
-        const csv = [headers.join(",")];
-        currentGenerator.fieldBook.forEach(row => {
-            csv.push([row.id, row.location, row.plot, row.rep, row.iblock, row.entry, row.treatment].join(","));
-        });
-        const blob = new Blob([csv.join("\n")], { type: 'text/csv' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `ibd_design_${Date.now()}.csv`;
-        a.click();
-    });
-
-    // PNG Export
-    document.getElementById('download-png').addEventListener('click', () => {
-        const container = document.getElementById('map-capture');
-        html2canvas(container, {
-            backgroundColor: "#1f2122",
-            scale: 2
-        }).then(canvas => {
-            const a = document.createElement('a');
-            a.download = `ibd_field_map_${Date.now()}.png`;
-            a.href = canvas.toDataURL();
-            a.click();
-        });
-    });
 });

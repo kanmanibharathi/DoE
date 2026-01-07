@@ -2,28 +2,48 @@
  * Strip Plot Design Logic
  * Implementation for Research Hub
  */
+'use strict';
 
 class StripPlotDesign {
     constructor() {
         this.initEventListeners();
         this.mulberry = null;
+        this.lastData = null;
+        this.lastInfo = null;
     }
 
     initEventListeners() {
-        document.getElementById('generate-btn').addEventListener('click', () => this.generate());
-        document.getElementById('export-btn').addEventListener('click', () => this.exportCSV());
-//         document.getElementById('copy-btn').addEventListener('click', () => this.copyToClipboard());
-//         document.getElementById('download-map-btn').addEventListener('click', () => this.downloadMap());
-// 
-//         // Tab Switching
-//         document.querySelectorAll('.tab').forEach(tab => {
-//             tab.addEventListener('click', () => {
-//                 document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-//                 document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-//                 tab.classList.add('active');
-//                 document.getElementById(tab.dataset.tab).classList.add('active');
-//             });
-        });
+        const genBtn = document.getElementById('generate-btn');
+        const expBtn = document.getElementById('export-btn');
+
+        if (genBtn) {
+            genBtn.addEventListener('click', () => {
+                try {
+                    this.generate();
+                } catch (e) {
+                    console.error(e);
+                    alert("Error: " + e.message);
+                }
+            });
+        }
+
+        if (expBtn) {
+            expBtn.addEventListener('click', () => this.exportCSV());
+        }
+
+        const tabs = document.querySelectorAll('.tab');
+        if (tabs) {
+            tabs.forEach(tab => {
+                tab.addEventListener('click', () => {
+                    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                    tab.classList.add('active');
+                    const targetId = tab.getAttribute('data-tab');
+                    const content = document.getElementById(targetId);
+                    if (content) content.classList.add('active');
+                });
+            });
+        }
     }
 
     mulberry32(a) {
@@ -46,7 +66,7 @@ class StripPlotDesign {
     }
 
     parseInput(input, prefix) {
-        if (!input.trim()) return [];
+        if (!input || !input.trim()) return [];
         if (!isNaN(input)) {
             const n = parseInt(input);
             return Array.from({ length: n }, (_, i) => `${prefix}${i + 1}`);
@@ -55,15 +75,28 @@ class StripPlotDesign {
     }
 
     generate() {
-        const hInput = document.getElementById('h-input').value;
-        const vInput = document.getElementById('v-input').value;
-        const reps = parseInt(document.getElementById('reps-input').value);
-        const locations = parseInt(document.getElementById('loc-input').value);
-        const planter = document.getElementById('layout-input').value; // serpentine / cartesian
-        const startPlot = parseInt(document.getElementById('plot-input').value);
-        let seed = parseInt(document.getElementById('seed-input').value);
-        const randomizeHPerRep = document.getElementById('randH-input').checked;
-        const randomizeVPerRep = document.getElementById('randV-input').checked;
+        const hInputEl = document.getElementById('h-input');
+        const vInputEl = document.getElementById('v-input');
+        const repsEl = document.getElementById('reps-input');
+        const locEl = document.getElementById('loc-input');
+        const layoutEl = document.getElementById('layout-input');
+        const plotEl = document.getElementById('plot-input');
+        const seedEl = document.getElementById('seed-input');
+        const randHEl = document.getElementById('randH-input');
+        const randVEl = document.getElementById('randV-input'); // Fixed ID based on previous usage
+
+        if (!hInputEl || !vInputEl || !repsEl) return;
+
+        const hInput = hInputEl.value;
+        const vInput = vInputEl.value;
+        const reps = parseInt(repsEl.value);
+        const locations = parseInt(locEl.value);
+        const planter = layoutEl.value; // serpentine / cartesian
+        const startPlot = parseInt(plotEl.value);
+        const rawSeed = seedEl.value;
+        let seed = (rawSeed !== "" && rawSeed !== null) ? parseInt(rawSeed) : Math.floor(Math.random() * 999999);
+        const randomizeHPerRep = randHEl ? randHEl.checked : false;
+        const randomizeVPerRep = randVEl ? randVEl.checked : false;
 
         if (isNaN(seed)) seed = Math.floor(Math.random() * 999999);
         this.mulberry = this.mulberry32(seed);
@@ -147,33 +180,38 @@ class StripPlotDesign {
     }
 
     render() {
-        document.getElementById('results').style.display = 'block';
-        document.getElementById('info-factors').innerText = `${this.lastInfo.nH}H x ${this.lastInfo.nV}V`;
-        document.getElementById('info-layout').innerText = this.lastInfo.planter;
-        document.getElementById('info-total').innerText = this.lastInfo.total;
+        const results = document.getElementById('results');
+        if (results) results.style.display = 'block';
+
+        if (document.getElementById('info-factors')) document.getElementById('info-factors').innerText = `${this.lastInfo.nH}H x ${this.lastInfo.nV}V`;
+        if (document.getElementById('info-layout')) document.getElementById('info-layout').innerText = this.lastInfo.planter;
+        if (document.getElementById('info-total')) document.getElementById('info-total').innerText = this.lastInfo.total;
 
         // Table
         const tbody = document.querySelector('#field-book-table tbody');
-        tbody.innerHTML = '';
-        this.lastData.forEach(row => {
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td>${row.id}</td>
-                <td>${row.location}</td>
-                <td>${row.plot}</td>
-                <td>${row.rep}</td>
-                <td>${row.h}</td>
-                <td>${row.v}</td>
-                <td><span style="color: var(--primary); font-weight:700;">${row.trt}</span></td>
-            `;
-            tbody.appendChild(tr);
-        });
+        if (tbody && this.lastData) {
+            tbody.innerHTML = '';
+            this.lastData.forEach(row => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${row.id}</td>
+                    <td>${row.location}</td>
+                    <td>${row.plot}</td>
+                    <td>${row.rep}</td>
+                    <td>${row.h}</td>
+                    <td>${row.v}</td>
+                    <td><span style="color: var(--primary); font-weight:700;">${row.trt}</span></td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
 
         this.renderMap();
     }
 
     renderMap() {
         const container = document.getElementById('map-container');
+        if (!container || !this.lastData) return;
         container.innerHTML = '';
 
         const locations = [...new Set(this.lastData.map(d => d.location))];
@@ -250,27 +288,14 @@ class StripPlotDesign {
         a.download = `strip_plot_design.csv`;
         a.click();
     }
-
-    copyToClipboard() {
-        if (!this.lastData) return;
-        let text = "ID\tLOCATION\tPLOT\tREP\tH_STRIP\tV_STRIP\tCOMBINED\n";
-        this.lastData.forEach(r => {
-            text += `${r.id}\t${r.location}\t${r.plot}\t${r.rep}\t${r.h}\t${r.v}\t${r.trt}\n`;
-        });
-        navigator.clipboard.writeText(text).then(() => alert("Field book copied to clipboard!"));
-    }
-
-    downloadMap() {
-        const map = document.getElementById('map-container');
-        html2canvas(map, { backgroundColor: '#1f2122' }).then(canvas => {
-            const link = document.createElement('a');
-            link.download = 'strip_plot_map.png';
-            link.href = canvas.toDataURL();
-            link.click();
-        });
-    }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    new StripPlotDesign();
+    try {
+        if (document.getElementById('generate-btn')) {
+            new StripPlotDesign();
+        }
+    } catch (e) {
+        console.error("Strip Plot Init Error", e);
+    }
 });

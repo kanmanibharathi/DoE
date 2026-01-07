@@ -2,28 +2,44 @@
  * Augmented Randomized Complete Block Design (ARCBD) Design Generator
  * Implementation based on FielDHub ARCBD logic.
  */
+'use strict';
 
 class ARCBDGenerator {
     constructor() {
         this.initEventListeners();
         this.mulberry = null;
+        this.currentDesign = null;
+        this.fieldBookData = null;
     }
 
     initEventListeners() {
-        document.getElementById('generate-btn').addEventListener('click', () => this.generate());
-        document.getElementById('export-btn').addEventListener('click', () => this.exportCSV());
-//         document.getElementById('copy-btn').addEventListener('click', () => this.copyToClipboard());
-//         document.getElementById('download-map-btn').addEventListener('click', () => this.downloadMap());
-// 
-//         // Tab switching
-//         document.querySelectorAll('.tab').forEach(tab => {
-//             tab.addEventListener('click', (e) => {
-//                 document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-//                 document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-//                 e.target.classList.add('active');
-//                 document.getElementById(e.target.dataset.tab).classList.add('active');
-//             });
+        const generateBtn = document.getElementById('generate-btn');
+        const exportBtn = document.getElementById('export-btn');
+
+        if (generateBtn) generateBtn.addEventListener('click', () => {
+            try {
+                this.generate();
+            } catch (e) {
+                console.error(e);
+                alert("Error generating design: " + e.message);
+            }
         });
+
+        if (exportBtn) exportBtn.addEventListener('click', () => this.exportCSV());
+
+        const tabs = document.querySelectorAll('.tab');
+        if (tabs) {
+            tabs.forEach(tab => {
+                tab.addEventListener('click', () => {
+                    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                    tab.classList.add('active');
+                    const targetId = tab.getAttribute('data-tab');
+                    const content = document.getElementById(targetId);
+                    if (content) content.classList.add('active');
+                });
+            });
+        }
     }
 
     // Mulberry32 PRNG
@@ -45,13 +61,25 @@ class ARCBDGenerator {
     }
 
     generate() {
-        const linesCount = parseInt(document.getElementById('lines-input').value);
-        const checksCount = parseInt(document.getElementById('checks-input').value);
-        const bCount = parseInt(document.getElementById('blocks-input').value);
-        const lCount = parseInt(document.getElementById('locations-input').value);
-        const startPlot = parseInt(document.getElementById('plot-input').value);
-        const planter = document.getElementById('planter-input').value;
-        let seed = parseInt(document.getElementById('seed-input').value);
+        const linesInput = document.getElementById('lines-input');
+        const checksInput = document.getElementById('checks-input');
+        const blocksInput = document.getElementById('blocks-input');
+        const locsInput = document.getElementById('locations-input');
+        const plotInput = document.getElementById('plot-input');
+        const planterInput = document.getElementById('planter-input');
+        const seedInput = document.getElementById('seed-input');
+
+        if (!linesInput || !checksInput || !blocksInput) return;
+
+        const linesCount = parseInt(linesInput.value);
+        const checksCount = parseInt(checksInput.value);
+        const bCount = parseInt(blocksInput.value);
+        const lCount = parseInt(locsInput.value);
+        const startPlot = parseInt(plotInput.value);
+        const planter = planterInput ? planterInput.value : 'serpentine';
+
+        const rawSeed = seedInput.value;
+        let seed = (rawSeed !== "" && rawSeed !== null) ? parseInt(rawSeed) : Math.floor(Math.random() * 999999);
 
         if (isNaN(seed)) seed = Math.floor(Math.random() * 999999);
         this.mulberry = this.mulberry32(seed);
@@ -61,6 +89,11 @@ class ARCBDGenerator {
         // plots_per_block = ceil(all_genotypes / b)
         const totalPlotsNeeded = linesCount + (checksCount * bCount);
         const plotsPerBlock = Math.ceil(totalPlotsNeeded / bCount);
+        // This calculation might need refinement if (checks * b + lines) isn't evenly divisible? 
+        // Actually ARCBD usually fits lines + checks. 
+        // Checks are repeated in every block. Lines are appearing once only across the whole experiment (augmented).
+        // Total plots = (Lines) + (Checks * Blocks).
+
         const totalFieldPlots = plotsPerBlock * bCount;
         const fillerCount = totalFieldPlots - totalPlotsNeeded;
 
@@ -79,16 +112,17 @@ class ARCBDGenerator {
         // Distribute lines into blocks
         const blocks = [];
         let lineIdx = 0;
-        let fillerIdx = 0;
+
+        // Distribute lines as evenly as possible first
+        const linesPerBlockBase = Math.floor(linesCount / bCount);
+        const remainderLines = linesCount % bCount;
 
         for (let i = 0; i < bCount; i++) {
             const blockContent = [...checks]; // Every block gets all checks
 
-            // How many lines go in this block?
-            // Normally lines divided by blocks.
-            const baseLinesPerBlock = Math.floor(linesCount / bCount);
-            let linesInThisBlock = baseLinesPerBlock;
-            if (i < (linesCount % bCount)) linesInThisBlock++;
+            // Determine how many lines in this block
+            let linesInThisBlock = linesPerBlockBase;
+            if (i < remainderLines) linesInThisBlock++;
 
             for (let j = 0; j < linesInThisBlock; j++) {
                 if (lineIdx < lines.length) {
@@ -96,7 +130,11 @@ class ARCBDGenerator {
                 }
             }
 
-            // Fillers - R distributes them. We can distribute them to keep block sizes equal.
+            // Fillers - if block is still short of plotsPerBlock (due to unevenness calculation discrepancies if any)
+            // But wait, standard ARCBD construction ensures lines are split.
+            // If totalPlotsNeeded doesn't divide by bCount, we might have issue if we enforce Rectangular blocks.
+            // Usually we want equal block sizes.
+
             while (blockContent.length < plotsPerBlock) {
                 blockContent.push({ entry: 0, name: 'Filler', type: 'Filler' });
             }
@@ -121,107 +159,148 @@ class ARCBDGenerator {
     }
 
     render() {
+        if (!this.currentDesign) return;
         const { blocks, plotsPerBlock, totalFieldPlots, fillerCount, seed, startPlot, planter } = this.currentDesign;
 
         // Update Stats
-        document.getElementById('info-plots-per-block').textContent = plotsPerBlock;
-        document.getElementById('info-total-plots').textContent = totalFieldPlots;
-        document.getElementById('info-fillers').textContent = fillerCount;
-        document.getElementById('info-seed').textContent = seed;
+        const elPpB = document.getElementById('info-plots-per-block');
+        const elTot = document.getElementById('info-total-plots');
+        const elFil = document.getElementById('info-fillers');
+        const elSeed = document.getElementById('info-seed');
+        const resultsEl = document.getElementById('results');
 
-        document.getElementById('results').style.display = 'block';
+        if (elPpB) elPpB.textContent = plotsPerBlock;
+        if (elTot) elTot.textContent = totalFieldPlots;
+        if (elFil) elFil.textContent = fillerCount;
+        if (elSeed) elSeed.textContent = seed;
+
+        if (resultsEl) {
+            resultsEl.style.display = 'block';
+            resultsEl.scrollIntoView({ behavior: 'smooth' });
+        }
 
         // Render Table
         const tbody = document.querySelector('#field-book-table tbody');
-        tbody.innerHTML = '';
-        const fieldBookData = [];
+        if (tbody) {
+            tbody.innerHTML = '';
+            const fieldBookData = [];
 
-        let currentPlot = startPlot;
-        blocks.forEach((block, bIdx) => {
-            const blockId = bIdx + 1;
+            let currentPlot = startPlot;
+            blocks.forEach((block, bIdx) => {
+                const blockId = bIdx + 1;
 
-            // Logic for serpentine vs cartesian plot numbering
-            let blockPlots = [...block];
-            const isSerpentine = planter === 'serpentine';
+                // For table, we usually list in plot order.
+                // If serpentine, the plot numbers follow snake path.
+                // However, the `block` array is currently just randomized content.
+                // We need to map `block` content to spatial plots.
 
-            // If serpentine, reverse alternate blocks for plot numbering logic
-            // In our simple display we just increment plot as we go.
+                // If serpentine, and we map plots spatially 1..N, N..1
+                // The plot numbers themselves increase spatially?
+                // Standard convention: Plot 101, 102...
+                // Serpentine means the planter drives one way then back. 
+                // Does 'Plot 102' mean the second plot in the path, or the second plot to the right?
+                // Usually Plot ID is spatial.
+                // Let's assume Plot ID increments strictly by position in array for now for simplicity,
+                // matching the other apps where we just output the list.
 
-            blockPlots.forEach((item, pIdx) => {
-                const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td>${currentPlot}</td>
-                    <td>${blockId}</td>
-                    <td><span class="badge ${item.type.toLowerCase()}">${item.type}</span></td>
-                    <td>${item.entry > 0 ? item.entry : '-'}</td>
-                    <td>${item.name}</td>
-                `;
-                tbody.appendChild(tr);
+                let blockPlots = [...block];
+                // Note: In ARCBD app original code, it didn't do the reverse logic in the *Table*, only in Map.
+                // But normally we want table to reflect map.
 
-                fieldBookData.push({
-                    plot: currentPlot,
-                    block: blockId,
-                    type: item.type,
-                    entry: item.entry,
-                    name: item.name
+                blockPlots.forEach((item) => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td>${currentPlot}</td>
+                        <td>${blockId}</td>
+                        <td><span class="badge ${item.type.toLowerCase()}">${item.type}</span></td>
+                        <td>${item.entry > 0 ? item.entry : '-'}</td>
+                        <td>${item.name}</td>
+                    `;
+                    tbody.appendChild(tr);
+
+                    fieldBookData.push({
+                        plot: currentPlot,
+                        block: blockId,
+                        type: item.type,
+                        entry: item.entry,
+                        name: item.name
+                    });
+
+                    currentPlot++;
                 });
-
-                currentPlot++;
             });
-            // Skip to next hundred if needed (often done in R) but we'll stick to sequential for now 
-            // unless we want to mimic the plotNumber increment logic from the R code.
-            // In R: plotNumber = seq(101, 1000*(l+1), 1000)
-            // But within a location it's usually consecutive.
-        });
-
-        this.fieldBookData = fieldBookData;
+            this.fieldBookData = fieldBookData;
+        }
 
         // Render Map
         const mapContainer = document.getElementById('map-container');
-        mapContainer.innerHTML = '';
+        if (mapContainer) {
+            mapContainer.innerHTML = '';
 
-        const matrixGrid = document.createElement('div');
-        matrixGrid.className = 'matrix-grid';
-        // Let's assume Each block is a horizontal row for visualization
-        matrixGrid.style.gridTemplateColumns = `repeat(${plotsPerBlock}, 1fr)`;
+            const matrixGrid = document.createElement('div');
+            matrixGrid.className = 'matrix-grid';
+            matrixGrid.style.gridTemplateColumns = `repeat(${plotsPerBlock}, 1fr)`;
 
-        blocks.forEach((block, bIdx) => {
-            const blockContainer = document.createElement('div');
-            blockContainer.className = 'block-container';
-            blockContainer.style.gridColumn = `1 / span ${plotsPerBlock}`;
-            blockContainer.style.display = 'contents';
-
-            // Serpentine check
-            let displayBlock = [...block];
-            if (planter === 'serpentine' && (bIdx % 2 !== 0)) {
-                displayBlock.reverse();
-            }
-
-            displayBlock.forEach((item, pIdx) => {
-                const cell = document.createElement('div');
-                cell.className = `cell ${item.type.toLowerCase()}`;
-
-                // We need to calculate the actual plot number for this cell based on movement
-                let actualPlot;
-                if (planter === 'serpentine') {
-                    if (bIdx % 2 === 0) {
-                        actualPlot = startPlot + (bIdx * plotsPerBlock) + pIdx;
-                    } else {
-                        actualPlot = startPlot + (bIdx * plotsPerBlock) + (plotsPerBlock - 1 - pIdx);
-                    }
-                } else {
-                    actualPlot = startPlot + (bIdx * plotsPerBlock) + pIdx;
+            blocks.forEach((block, bIdx) => {
+                // Serpentine visual adjustment
+                let displayBlock = [...block];
+                if (planter === 'serpentine' && (bIdx % 2 !== 0)) {
+                    displayBlock.reverse();
                 }
 
-                cell.innerHTML = `
-                    <div class="plot-id">${actualPlot}</div>
-                    <div class="trt-name">${item.name}</div>
-                `;
-                matrixGrid.appendChild(cell);
-            });
-        });
+                displayBlock.forEach((item, pIdx) => {
+                    const cell = document.createElement('div');
+                    cell.className = `cell ${item.type.toLowerCase()}`;
 
-        mapContainer.appendChild(matrixGrid);
+                    // We try to reconstruct the plot number shown in the cell
+                    // based on the previous simple sequential numbering.
+                    // This is tricky if we don't store it. 
+                    // Let's approximate:
+                    // StartPlot + (BlockIndex * PlotsPerBlock) + (pIdx if normal, inverted if serpentine reverse)
+
+                    let plotInBlockOffset = pIdx;
+                    if (planter === 'serpentine' && (bIdx % 2 !== 0)) {
+                        // If displayed reversed, the Item at pIdx=0 is actually the last one in physical order?
+                        // If we reversed the array `displayBlock`, then the item at index 0 
+                        // IS the one that was at index `length-1` in the original `block`.
+                        // So its original index in `block` (which corresponds to sequential plot numbers) was `length-1`.
+                        // Wait, `fieldBookData` was generated sequentially from `block` (unreversed).
+                        // So `block[0]` has `Plot X`. `block[last]` has `Plot X+N`.
+                        // If we display `block[last]` first (visual left), it should show `Plot X+N`.
+
+                        // We need to find the item in valid objects to get its assigned plot.
+                        // But `item` is just a plain object {entry, name...} which we reused.
+                        // We should map back to field book data?
+                    }
+
+                    // Easier way: Store plot in item during table generation or find it.
+                    // Let's just lookup roughly or recalculate.
+
+                    // Actually, simpler: just display content. Plot numbers in map are nice but maybe not critical if complicated.
+                    // But wait, the previous code tried to calc `actualPlot`.
+                    // Let's use the same logic as previous code but correctly.
+
+                    let actualPlot;
+                    if (planter === 'serpentine') {
+                        if (bIdx % 2 === 0) {
+                            actualPlot = startPlot + (bIdx * plotsPerBlock) + pIdx;
+                        } else {
+                            actualPlot = startPlot + (bIdx * plotsPerBlock) + (plotsPerBlock - 1 - pIdx);
+                        }
+                    } else {
+                        actualPlot = startPlot + (bIdx * plotsPerBlock) + pIdx;
+                    }
+
+                    cell.innerHTML = `
+                        <div class="plot-id">${actualPlot}</div>
+                        <div class="trt-name">${item.name}</div>
+                    `;
+                    matrixGrid.appendChild(cell);
+                });
+            });
+
+            mapContainer.appendChild(matrixGrid);
+        }
     }
 
     exportCSV() {
@@ -234,41 +313,22 @@ class ARCBDGenerator {
         const blob = new Blob([csv], { type: 'text/csv' });
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
-        a.setAttribute('hidden', '');
-        a.setAttribute('href', url);
-        a.setAttribute('download', 'ARCBD_FieldBook.csv');
+        a.style.display = 'none';
+        a.href = url;
+        a.download = 'ARCBD_FieldBook.csv';
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
-    }
-
-    copyToClipboard() {
-        if (!this.fieldBookData) return;
-        let text = 'Plot\tBlock\tType\tEntry\tName\n';
-        this.fieldBookData.forEach(row => {
-            text += `${row.plot}\t${row.block}\t${row.type}\t${row.entry}\t${row.name}\n`;
-        });
-
-        navigator.clipboard.writeText(text).then(() => {
-            alert('Copied to clipboard!');
-        });
-    }
-
-    downloadMap() {
-        const container = document.getElementById('map-container');
-        html2canvas(container, {
-            backgroundColor: '#1e293b',
-            scale: 2
-        }).then(canvas => {
-            const link = document.createElement('a');
-            link.download = 'ARCBD_FieldMap.png';
-            link.href = canvas.toDataURL();
-            link.click();
-        });
     }
 }
 
 // Global initialization
 document.addEventListener('DOMContentLoaded', () => {
-    window.app = new ARCBDGenerator();
+    try {
+        if (document.getElementById('generate-btn')) {
+            window.app = new ARCBDGenerator();
+        }
+    } catch (e) {
+        console.error("ARCBD Init Error", e);
+    }
 });

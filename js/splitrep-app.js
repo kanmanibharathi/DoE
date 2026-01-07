@@ -3,17 +3,32 @@
  * Implementation of random distribution of genotypes into multiple locations 
  * while maintaining family balance.
  */
+'use strict';
 
 class SplitPopulation {
     constructor() {
         this.initEventListeners();
         this.mulberry = null;
+        this.lastResults = null;
     }
 
     initEventListeners() {
-        document.getElementById('split-btn').addEventListener('click', () => this.runSplit());
-        document.getElementById('sample-btn').addEventListener('click', () => this.loadExample());
-        document.getElementById('export-btn').addEventListener('click', () => this.exportResults());
+        const splitBtn = document.getElementById('split-btn');
+        const sampleBtn = document.getElementById('sample-btn');
+        const exportBtn = document.getElementById('export-btn');
+
+        if (splitBtn) {
+            splitBtn.addEventListener('click', () => {
+                try {
+                    this.runSplit();
+                } catch (e) {
+                    console.error(e);
+                    alert("Error: " + e.message);
+                }
+            });
+        }
+        if (sampleBtn) sampleBtn.addEventListener('click', () => this.loadExample());
+        if (exportBtn) exportBtn.addEventListener('click', () => this.exportResults());
     }
 
     mulberry32(a) {
@@ -48,10 +63,11 @@ class SplitPopulation {
             const f = Math.floor(Math.random() * families) + 1;
             data += `${1000 + i},SB-${i},F-${f}\n`;
         }
-        document.getElementById('data-input').value = data;
+        if (document.getElementById('data-input')) document.getElementById('data-input').value = data;
     }
 
     parseInput() {
+        if (!document.getElementById('data-input')) return null;
         const raw = document.getElementById('data-input').value.trim();
         if (!raw) {
             alert("Please provide entry data.");
@@ -81,7 +97,12 @@ class SplitPopulation {
     }
 
     runSplit() {
-        const lCount = parseInt(document.getElementById('locations-input').value);
+        const lCountEl = document.getElementById('locations-input');
+        const seedEl = document.getElementById('seed-input');
+
+        if (!lCountEl) return;
+
+        const lCount = parseInt(lCountEl.value);
         if (isNaN(lCount) || lCount < 1) {
             alert("Invalid number of locations.");
             return;
@@ -90,7 +111,7 @@ class SplitPopulation {
         const entries = this.parseInput();
         if (!entries) return;
 
-        let seed = parseInt(document.getElementById('seed-input').value);
+        let seed = parseInt(seedEl.value);
         if (isNaN(seed)) seed = Math.floor(Math.random() * 999999);
         this.mulberry = this.mulberry32(seed);
 
@@ -149,48 +170,53 @@ class SplitPopulation {
         const summaryTableBody = document.querySelector('#summary-table tbody');
         const resultsTableBody = document.querySelector('#results-table tbody');
 
-        resultsSection.style.display = 'block';
-        summaryGrid.innerHTML = '';
-        summaryTableBody.innerHTML = '';
-        resultsTableBody.innerHTML = '';
+        if (resultsSection) resultsSection.style.display = 'block';
+        if (summaryGrid) {
+            summaryGrid.innerHTML = '';
+            const totalEntries = buckets.reduce((acc, curr) => acc + curr.length, 0);
+            summaryGrid.innerHTML = `
+                <div class="info-item">
+                    <div class="info-label">Total Locations</div>
+                    <div class="info-value">${buckets.length}</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">Total Genotypes</div>
+                    <div class="info-value">${totalEntries}</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">Families Detected</div>
+                    <div class="info-value">${new Set(buckets.flat().map(e => e.family)).size}</div>
+                </div>
+            `;
+        }
 
-        // Summary Grid
-        const totalEntries = buckets.reduce((acc, curr) => acc + curr.length, 0);
-        summaryGrid.innerHTML = `
-            <div class="info-item">
-                <div class="info-label">Total Locations</div>
-                <div class="info-value">${buckets.length}</div>
-            </div>
-            <div class="info-item">
-                <div class="info-label">Total Genotypes</div>
-                <div class="info-value">${totalEntries}</div>
-            </div>
-            <div class="info-item">
-                <div class="info-label">Families Detected</div>
-                <div class="info-value">${new Set(buckets.flat().map(e => e.family)).size}</div>
-            </div>
-        `;
+        if (summaryTableBody) summaryTableBody.innerHTML = '';
+        if (resultsTableBody) resultsTableBody.innerHTML = '';
 
         // Summary Table & Results Table
         buckets.forEach((bucket, idx) => {
             const locName = `Location ${idx + 1}`;
 
             // Add to summary table
-            const sRow = document.createElement('tr');
-            sRow.innerHTML = `<td>${locName}</td><td>${bucket.length}</td>`;
-            summaryTableBody.appendChild(sRow);
+            if (summaryTableBody) {
+                const sRow = document.createElement('tr');
+                sRow.innerHTML = `<td>${locName}</td><td>${bucket.length}</td>`;
+                summaryTableBody.appendChild(sRow);
+            }
 
             // Add to results table
-            bucket.forEach(e => {
-                const rRow = document.createElement('tr');
-                rRow.innerHTML = `
-                    <td>${e.entry}</td>
-                    <td>${e.name}</td>
-                    <td>${e.family}</td>
-                    <td><span class="badge" style="background: var(--accent)">${locName}</span></td>
-                `;
-                resultsTableBody.appendChild(rRow);
-            });
+            if (resultsTableBody) {
+                bucket.forEach(e => {
+                    const rRow = document.createElement('tr');
+                    rRow.innerHTML = `
+                        <td>${e.entry}</td>
+                        <td>${e.name}</td>
+                        <td>${e.family}</td>
+                        <td><span class="badge" style="background: var(--accent)">${locName}</span></td>
+                    `;
+                    resultsTableBody.appendChild(rRow);
+                });
+            }
         });
     }
 
@@ -214,5 +240,11 @@ class SplitPopulation {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    window.app = new SplitPopulation();
+    try {
+        if (document.getElementById('split-btn')) {
+            window.app = new SplitPopulation();
+        }
+    } catch (e) {
+        console.error("Split Pop Init Error", e);
+    }
 });

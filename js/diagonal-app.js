@@ -3,6 +3,7 @@
  * Implements SUDC (Single Un-replicated Diagonal Checks) algorithm
  * Supports multiple locations and spatial data simulation.
  */
+'use strict';
 
 class DiagonalGenerator {
     constructor(rows, cols, lines, checkNames, locations = 1, planter = 'serpentine', seed = null) {
@@ -12,7 +13,9 @@ class DiagonalGenerator {
         this.checkNames = Array.isArray(checkNames) ? checkNames : [checkNames];
         this.locations = parseInt(locations);
         this.planter = planter;
-        this.seed = seed || Math.floor(Math.random() * 1000000);
+
+        // Robust seed handling
+        this.seed = (seed !== null && seed !== undefined && !isNaN(seed)) ? seed : Math.floor(Math.random() * 1000000);
 
         this.fieldBook = [];
         this.matrices = []; // One matrix per location
@@ -144,12 +147,15 @@ class DiagonalGenerator {
             const rowTrends = Array.from({ length: this.rows }, () => (random() - 0.5) * spatialFactor * (max - min));
             const colTrends = Array.from({ length: this.cols }, () => (random() - 0.5) * spatialFactor * (max - min));
 
+            // Fix potential issue where lIdx doesn't map correctly if locations filtered
+            // Re-matching Logic: find corresponding fieldBook entries
+
             for (let r = 0; r < this.rows; r++) {
                 for (let c = 0; c < this.cols; c++) {
                     const noise = (random() - 0.5) * (1 - spatialFactor) * (max - min);
                     const base = (min + max) / 2;
                     const val = base + rowTrends[r] + colTrends[c] + noise;
-                    matrix[r][c].value = val.toFixed(2);
+                    if (matrix[r][c]) matrix[r][c].value = val.toFixed(2);
 
                     // Update fieldBook
                     const fbEntry = this.fieldBook.find(f => f.location === `Loc ${lIdx + 1}` && f.row === r + 1 && f.col === c + 1);
@@ -163,186 +169,235 @@ class DiagonalGenerator {
 
 // UI Controller
 document.addEventListener('DOMContentLoaded', () => {
-    const generateBtn = document.getElementById('generate-btn');
-    const simulateBtn = document.getElementById('simulate-btn');
-    const exportBtn = document.getElementById('export-btn');
-    const copyBtn = document.getElementById('copy-btn');
-    const downloadMapBtn = document.getElementById('download-map-btn');
-    const resultsSection = document.getElementById('results');
-    const fbTableBody = document.querySelector('#field-book-table tbody');
-    const matrixWrapper = document.getElementById('matrix-wrapper');
-    const heatmapContainer = document.getElementById('heatmap-container');
-    const heatmapTrigger = document.getElementById('heatmap-trigger');
-    const tabs = document.querySelectorAll('.tab');
+    try {
+        const generateBtn = document.getElementById('generate-btn');
+        const simulateBtn = document.getElementById('simulate-btn');
+        const exportBtn = document.getElementById('export-btn');
+        // const copyBtn = document.getElementById('copy-btn');
+        const downloadMapBtn = document.getElementById('download-map-btn');
+        const resultsSection = document.getElementById('results');
+        const fbTableBody = document.querySelector('#field-book-table tbody');
+        const matrixWrapper = document.getElementById('matrix-wrapper');
+        const heatmapContainer = document.getElementById('heatmap-container');
+        const heatmapTrigger = document.getElementById('heatmap-trigger');
+        const tabs = document.querySelectorAll('.tab');
 
-    let currentGenerator = null;
+        if (!generateBtn) return;
 
-    generateBtn.addEventListener('click', () => {
-        const rows = document.getElementById('rows-input').value;
-        const cols = document.getElementById('cols-input').value;
-        const lines = document.getElementById('lines-input').value;
-        const checkNames = document.getElementById('check-names').value.split(',').map(s => s.trim());
-        const locs = document.getElementById('l-input').value;
-        const planter = document.getElementById('planter-input').value;
-        const startPlot = parseInt(document.getElementById('plot-start').value);
-        const exptName = document.getElementById('expt-name').value;
-        const seed = document.getElementById('seed-input').value ? parseInt(document.getElementById('seed-input').value) : null;
+        let currentGenerator = null;
 
-        try {
-            const generator = new DiagonalGenerator(rows, cols, lines, checkNames, locs, planter, seed);
-            const data = generator.generate(startPlot, exptName);
-            currentGenerator = generator;
+        generateBtn.addEventListener('click', () => {
+            try {
+                const rowsInput = document.getElementById('rows-input');
+                const colsInput = document.getElementById('cols-input');
+                const linesInput = document.getElementById('lines-input');
+                const checksInput = document.getElementById('check-names');
+                const locsInput = document.getElementById('l-input');
+                const planterInput = document.getElementById('planter-input');
+                const startPlotInput = document.getElementById('plot-start');
+                const exptNameInput = document.getElementById('expt-name');
+                const seedInput = document.getElementById('seed-input');
 
-            // Info cards
-            document.getElementById('info-check-pct').textContent = generator.info.checkPct;
-            document.getElementById('info-total-plots').textContent = generator.info.totalPlots;
-            document.getElementById('info-fillers').textContent = generator.info.fillers;
+                // Basic validation
+                if (!rowsInput || !colsInput || !linesInput) {
+                    alert("Missing input fields.");
+                    return;
+                }
 
-            renderMatrix(generator.matrices[0]); // Show first location by default
-            renderTable(data);
+                const rows = rowsInput.value;
+                const cols = colsInput.value;
+                const lines = linesInput.value;
+                const checkNames = checksInput.value.split(',').map(s => s.trim());
+                const locs = locsInput.value;
+                const planter = planterInput.value;
+                const startPlot = parseInt(startPlotInput.value);
+                const exptName = exptNameInput.value;
 
-            resultsSection.style.display = 'block';
-            simulateBtn.style.display = 'block';
-            heatmapTrigger.style.display = 'none';
-            resultsSection.scrollIntoView({ behavior: 'smooth' });
+                let seed = null;
+                if (seedInput && seedInput.value !== "") {
+                    seed = parseInt(seedInput.value);
+                }
 
-        } catch (e) {
-            alert(e.message);
+                const generator = new DiagonalGenerator(rows, cols, lines, checkNames, locs, planter, seed);
+                const data = generator.generate(startPlot, exptName);
+                currentGenerator = generator;
+
+                // Info cards
+                if (document.getElementById('info-check-pct')) document.getElementById('info-check-pct').textContent = generator.info.checkPct;
+                if (document.getElementById('info-total-plots')) document.getElementById('info-total-plots').textContent = generator.info.totalPlots;
+                if (document.getElementById('info-fillers')) document.getElementById('info-fillers').textContent = generator.info.fillers;
+
+                renderMatrix(generator.matrices[0]); // Show first location by default
+                renderTable(data);
+
+                if (resultsSection) {
+                    resultsSection.style.display = 'block';
+                    resultsSection.scrollIntoView({ behavior: 'smooth' });
+                }
+                if (simulateBtn) simulateBtn.style.display = 'block';
+                if (heatmapTrigger) heatmapTrigger.style.display = 'none';
+
+            } catch (e) {
+                console.error(e);
+                alert("Error generating design: " + e.message);
+            }
+        });
+
+        if (simulateBtn) {
+            simulateBtn.addEventListener('click', () => {
+                if (!currentGenerator) return;
+                try {
+                    const data = currentGenerator.simulate();
+                    renderTable(data);
+                    renderHeatmap(currentGenerator.matrices[0]);
+                    if (heatmapTrigger) heatmapTrigger.style.display = 'block';
+                    alert("Spatial data simulated successfully!");
+                } catch (e) {
+                    console.error(e);
+                    alert("Simulation error: " + e.message);
+                }
+            });
         }
-    });
 
-    simulateBtn.addEventListener('click', () => {
-        if (!currentGenerator) return;
-        const data = currentGenerator.simulate();
-        renderTable(data);
-        renderHeatmap(currentGenerator.matrices[0]);
-        heatmapTrigger.style.display = 'block';
-        alert("Spatial data simulated successfully!");
-    });
+        function renderMatrix(matrix) {
+            if (!matrixWrapper) return;
+            matrixWrapper.innerHTML = '';
+            const rows = matrix.length;
+            const cols = matrix[0].length;
+            matrixWrapper.style.gridTemplateColumns = `repeat(${cols}, 45px)`;
 
-    function renderMatrix(matrix) {
-        matrixWrapper.innerHTML = '';
-        const rows = matrix.length;
-        const cols = matrix[0].length;
-        matrixWrapper.style.gridTemplateColumns = `repeat(${cols}, 45px)`;
-
-        for (let r = rows - 1; r >= 0; r--) {
-            for (let c = 0; c < cols; c++) {
-                const item = matrix[r][c];
-                const cell = document.createElement('div');
-                cell.className = `cell ${item.type.toLowerCase()}`;
-                cell.innerHTML = `<span>${item.id || '-'}</span><span style="font-size: 8px; opacity: 0.6;">${item.type[0]}</span>`;
-                matrixWrapper.appendChild(cell);
+            for (let r = rows - 1; r >= 0; r--) {
+                for (let c = 0; c < cols; c++) {
+                    const item = matrix[r][c];
+                    const cell = document.createElement('div');
+                    cell.className = `cell ${item.type.toLowerCase()}`;
+                    cell.innerHTML = `<span>${item.id || '-'}</span><span style="font-size: 8px; opacity: 0.6;">${item.type[0]}</span>`;
+                    matrixWrapper.appendChild(cell);
+                }
             }
         }
-    }
 
-    function renderHeatmap(matrix) {
-        heatmapContainer.innerHTML = '';
-        const grid = document.createElement('div');
-        grid.className = 'matrix-grid';
-        const rows = matrix.length;
-        const cols = matrix[0].length;
-        grid.style.gridTemplateColumns = `repeat(${cols}, 45px)`;
+        function renderHeatmap(matrix) {
+            if (!heatmapContainer) return;
+            heatmapContainer.innerHTML = '';
+            const grid = document.createElement('div');
+            grid.className = 'matrix-grid';
+            const rows = matrix.length;
+            const cols = matrix[0].length;
+            grid.style.gridTemplateColumns = `repeat(${cols}, 45px)`;
 
-        const values = matrix.flat().map(i => parseFloat(i.value));
-        const min = Math.min(...values);
-        const max = Math.max(...values);
+            const values = matrix.flat().map(i => parseFloat(i.value));
+            // Filter out NaNs if any check/filler doesn't have value
+            const validValues = values.filter(v => !isNaN(v));
 
-        for (let r = rows - 1; r >= 0; r--) {
-            for (let c = 0; c < cols; c++) {
-                const item = matrix[r][c];
-                const val = parseFloat(item.value);
-                const ratio = (val - min) / (max - min);
-                const cell = document.createElement('div');
-                cell.className = 'cell';
-                cell.style.backgroundColor = `rgba(0, 166, 81, ${0.1 + ratio * 0.9})`;
-                cell.style.color = ratio > 0.5 ? 'white' : 'var(--text-dim)';
-                cell.style.border = '1px solid rgba(255,255,255,0.1)';
-                cell.innerHTML = `<span style="font-size: 0.6rem;">${val.toFixed(1)}</span>`;
-                grid.appendChild(cell);
+            let min = 0, max = 100;
+            if (validValues.length > 0) {
+                min = Math.min(...validValues);
+                max = Math.max(...validValues);
             }
+
+            for (let r = rows - 1; r >= 0; r--) {
+                for (let c = 0; c < cols; c++) {
+                    const item = matrix[r][c];
+                    const val = parseFloat(item.value);
+                    const cell = document.createElement('div');
+                    cell.className = 'cell';
+
+                    if (!isNaN(val)) {
+                        const ratio = (val - min) / (max - min || 1);
+                        cell.style.backgroundColor = `rgba(0, 166, 81, ${0.1 + ratio * 0.9})`;
+                        cell.style.color = ratio > 0.5 ? 'white' : 'var(--text-dim)';
+                        cell.style.border = '1px solid rgba(255,255,255,0.1)';
+                        cell.innerHTML = `<span style="font-size: 0.6rem;">${val.toFixed(1)}</span>`;
+                    } else {
+                        cell.style.backgroundColor = '#ccc';
+                    }
+                    grid.appendChild(cell);
+                }
+            }
+            heatmapContainer.appendChild(grid);
         }
-        heatmapContainer.appendChild(grid);
+
+        function renderTable(data) {
+            if (!fbTableBody) return;
+            fbTableBody.innerHTML = '';
+            data.forEach(row => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${row.plot}</td>
+                    <td>${row.location}</td>
+                    <td>${row.row}</td>
+                    <td>${row.col}</td>
+                    <td>${row.entryId}</td>
+                    <td>${row.type}</td>
+                    <td><strong>${row.name}</strong></td>
+                    ${row.yield ? `<td style="color: var(--secondary); font-weight: 700;">${row.yield}</td>` : ''}
+                `;
+                const header = document.querySelector('#field-book-table thead tr');
+                if (header && row.yield && header.cells.length < 8) {
+                    const th = document.createElement('th');
+                    th.textContent = "Yield";
+                    header.appendChild(th);
+                }
+                fbTableBody.appendChild(tr);
+            });
+        }
+
+        // Export & Tabs logic (standardized)
+        tabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                const target = tab.getAttribute('data-tab');
+                if (!target) return;
+
+                tabs.forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+
+                const contents = document.querySelectorAll('.tab-content');
+                contents.forEach(c => c.classList.remove('active'));
+
+                const targetEl = document.getElementById(target);
+                if (targetEl) targetEl.classList.add('active');
+            });
+        });
+
+        if (exportBtn) {
+            exportBtn.addEventListener('click', () => {
+                if (!currentGenerator) return;
+                const headers = ["Plot", "Location", "Row", "Col", "EntryID", "Type", "Name"];
+                if (currentGenerator.fieldBook[0].yield) headers.push("Yield");
+                const csv = [headers.join(","), ...currentGenerator.fieldBook.map(r => {
+                    const row = [r.plot, r.location, r.row, r.col, r.entryId, r.type, r.name];
+                    if (r.yield) row.push(r.yield);
+                    return row.join(",");
+                })].join("\n");
+                const blob = new Blob([csv], { type: 'text/csv' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `diagonal_design_${Date.now()}.csv`;
+                a.click();
+            });
+        }
+
+        if (downloadMapBtn) {
+            downloadMapBtn.addEventListener('click', () => {
+                const container = document.getElementById('map-container');
+                if (!container || typeof html2canvas === 'undefined') {
+                    alert('Map container not found or html2canvas not loaded.');
+                    return;
+                }
+                html2canvas(container, {
+                    backgroundColor: "#1f2122",
+                    scale: 2
+                }).then(canvas => {
+                    const a = document.createElement('a');
+                    a.download = `diagonal_map_${Date.now()}.png`;
+                    a.href = canvas.toDataURL();
+                    a.click();
+                });
+            });
+        }
+    } catch (e) {
+        console.error("Diagonal App Init Error: ", e);
     }
-
-    function renderTable(data) {
-        fbTableBody.innerHTML = '';
-        data.forEach(row => {
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td>${row.plot}</td>
-                <td>${row.location}</td>
-                <td>${row.row}</td>
-                <td>${row.col}</td>
-                <td>${row.entryId}</td>
-                <td>${row.type}</td>
-                <td><strong>${row.name}</strong></td>
-                ${row.yield ? `<td style="color: var(--secondary); font-weight: 700;">${row.yield}</td>` : ''}
-            `;
-            const header = document.querySelector('#field-book-table thead tr');
-            if (row.yield && header.cells.length < 8) {
-                const th = document.createElement('th');
-                th.textContent = "Yield";
-                header.appendChild(th);
-            }
-            fbTableBody.appendChild(tr);
-        });
-    }
-
-    // Export & Tabs logic (standardized)
-    tabs.forEach(tab => {
-        tab.addEventListener('click', () => {
-            tabs.forEach(t => t.classList.remove('active'));
-            tab.classList.add('active');
-            const target = tab.getAttribute('data-tab');
-            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-            document.getElementById(target).classList.add('active');
-        });
-    });
-
-    exportBtn.addEventListener('click', () => {
-        if (!currentGenerator) return;
-        const headers = ["Plot", "Location", "Row", "Col", "EntryID", "Type", "Name"];
-        if (currentGenerator.fieldBook[0].yield) headers.push("Yield");
-        const csv = [headers.join(","), ...currentGenerator.fieldBook.map(r => {
-            const row = [r.plot, r.location, r.row, r.col, r.entryId, r.type, r.name];
-            if (r.yield) row.push(r.yield);
-            return row.join(",");
-        })].join("\n");
-        const blob = new Blob([csv], { type: 'text/csv' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `diagonal_design_${Date.now()}.csv`;
-        a.click();
-    });
-
-    downloadMapBtn.addEventListener('click', () => {
-        html2canvas(document.getElementById('map-container'), {
-            backgroundColor: "#1f2122",
-            scale: 2
-        }).then(canvas => {
-            const a = document.createElement('a');
-            a.download = `diagonal_map_${Date.now()}.png`;
-            a.href = canvas.toDataURL();
-            a.click();
-        });
-    });
-
-//     copyBtn.addEventListener('click', () => {
-//         if (!currentGenerator) return;
-//         const headers = ["Plot", "Location", "Row", "Col", "EntryID", "Type", "Name"];
-//         if (currentGenerator.fieldBook[0].yield) headers.push("Yield");
-//         const tsv = [headers.join("\t"), ...currentGenerator.fieldBook.map(r => {
-//             const row = [r.plot, r.location, r.row, r.col, r.entryId, r.type, r.name];
-//             if (r.yield) row.push(r.yield);
-//             return row.join("\t");
-//         })].join("\n");
-//         navigator.clipboard.writeText(tsv).then(() => {
-//             const old = copyBtn.innerHTML;
-//             copyBtn.innerHTML = '<i class="fas fa-check"></i> Copied!';
-//             setTimeout(() => copyBtn.innerHTML = old, 2000);
-//         });
-    });
 });

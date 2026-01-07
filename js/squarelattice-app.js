@@ -2,28 +2,48 @@
  * Square Lattice Design Logic
  * Implementation for Research Hub
  */
+'use strict';
 
 class SquareLatticeDesign {
     constructor() {
         this.initEventListeners();
         this.mulberry = null;
+        this.lastData = null;
+        this.lastInfo = null;
     }
 
     initEventListeners() {
-        document.getElementById('generate-btn').addEventListener('click', () => this.generate());
-        document.getElementById('export-btn').addEventListener('click', () => this.exportCSV());
-//         document.getElementById('copy-btn').addEventListener('click', () => this.copyToClipboard());
-//         document.getElementById('download-map-btn').addEventListener('click', () => this.downloadMap());
-// 
-//         // Tab Switching
-//         document.querySelectorAll('.tab').forEach(tab => {
-//             tab.addEventListener('click', () => {
-//                 document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-//                 document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-//                 tab.classList.add('active');
-//                 document.getElementById(tab.dataset.tab).classList.add('active');
-//             });
-        });
+        const genBtn = document.getElementById('generate-btn');
+        const expBtn = document.getElementById('export-btn');
+
+        if (genBtn) {
+            genBtn.addEventListener('click', () => {
+                try {
+                    this.generate();
+                } catch (e) {
+                    console.error(e);
+                    alert("Error generating design: " + e.message);
+                }
+            });
+        }
+
+        if (expBtn) {
+            expBtn.addEventListener('click', () => this.exportCSV());
+        }
+
+        const tabs = document.querySelectorAll('.tab');
+        if (tabs) {
+            tabs.forEach(tab => {
+                tab.addEventListener('click', () => {
+                    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                    tab.classList.add('active');
+                    const targetId = tab.getAttribute('data-tab');
+                    const content = document.getElementById(targetId);
+                    if (content) content.classList.add('active');
+                });
+            });
+        }
     }
 
     mulberry32(a) {
@@ -45,12 +65,23 @@ class SquareLatticeDesign {
 
     generate() {
         // Inputs
-        const tInput = parseInt(document.getElementById('t-input').value);
-        const rInput = parseInt(document.getElementById('r-input').value);
-        const lCount = parseInt(document.getElementById('loc-input').value);
-        const startPlot = parseInt(document.getElementById('plot-input').value);
-        let seed = parseInt(document.getElementById('seed-input').value);
-        const dataInput = document.getElementById('data-input').value;
+        const tInputEl = document.getElementById('t-input');
+        const rInputEl = document.getElementById('r-input');
+        const locInputEl = document.getElementById('loc-input');
+        const plotInputEl = document.getElementById('plot-input');
+        const seedInputEl = document.getElementById('seed-input');
+        const dataInputEl = document.getElementById('data-input');
+
+        if (!tInputEl || !rInputEl) return;
+
+        const tInput = parseInt(tInputEl.value);
+        const rInput = parseInt(rInputEl.value);
+        const lCount = parseInt(locInputEl.value);
+        const startPlot = parseInt(plotInputEl.value);
+
+        const rawSeed = seedInputEl.value;
+        let seed = (rawSeed !== "" && rawSeed !== null) ? parseInt(rawSeed) : Math.floor(Math.random() * 999999);
+        const dataInput = dataInputEl ? dataInputEl.value : "";
 
         // Validation
         if (isNaN(tInput) || tInput < 4) {
@@ -146,35 +177,38 @@ class SquareLatticeDesign {
 
     render() {
         const results = document.getElementById('results');
-        results.style.display = 'block';
+        if (results) results.style.display = 'block';
 
         // Update Info
-        document.getElementById('info-k').innerText = this.lastInfo.k;
-        document.getElementById('info-blocks').innerText = this.lastInfo.k;
-        document.getElementById('info-total').innerText = this.lastInfo.total;
+        if (document.getElementById('info-k')) document.getElementById('info-k').innerText = this.lastInfo.k;
+        if (document.getElementById('info-blocks')) document.getElementById('info-blocks').innerText = this.lastInfo.k;
+        if (document.getElementById('info-total')) document.getElementById('info-total').innerText = this.lastInfo.total;
 
         // Table
         const tbody = document.querySelector('#field-book-table tbody');
-        tbody.innerHTML = '';
-        this.lastData.forEach(row => {
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td>${row.id}</td>
-                <td>${row.location}</td>
-                <td>${row.plot}</td>
-                <td>${row.rep}</td>
-                <td>${row.iblock}</td>
-                <td>${row.entry}</td>
-                <td><span style="color: var(--primary); font-weight: 600;">${row.treatment}</span></td>
-            `;
-            tbody.appendChild(tr);
-        });
+        if (tbody && this.lastData) {
+            tbody.innerHTML = '';
+            this.lastData.forEach(row => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${row.id}</td>
+                    <td>${row.location}</td>
+                    <td>${row.plot}</td>
+                    <td>${row.rep}</td>
+                    <td>${row.iblock}</td>
+                    <td>${row.entry}</td>
+                    <td><span style="color: var(--primary); font-weight: 600;">${row.treatment}</span></td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
 
         this.renderMap();
     }
 
     renderMap() {
         const container = document.getElementById('map-container');
+        if (!container || !this.lastData) return;
         container.innerHTML = '';
 
         const locations = [...new Set(this.lastData.map(d => d.location))];
@@ -237,27 +271,14 @@ class SquareLatticeDesign {
         a.download = 'square_lattice_design.csv';
         a.click();
     }
-
-    copyToClipboard() {
-        if (!this.lastData) return;
-        let text = "ID\tLOCATION\tPLOT\tREPLICATE\tIBLOCK\tENTRY\tTREATMENT\n";
-        this.lastData.forEach(r => {
-            text += `${r.id}\t${r.location}\t${r.plot}\t${r.rep}\t${r.iblock}\t${r.entry}\t${r.treatment}\n`;
-        });
-        navigator.clipboard.writeText(text).then(() => alert("Field book copied to clipboard!"));
-    }
-
-    downloadMap() {
-        const map = document.getElementById('map-container');
-        html2canvas(map, { backgroundColor: '#1f2122' }).then(canvas => {
-            const link = document.createElement('a');
-            link.download = 'square_lattice_map.png';
-            link.href = canvas.toDataURL();
-            link.click();
-        });
-    }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    new SquareLatticeDesign();
+    try {
+        if (document.getElementById('generate-btn')) {
+            new SquareLatticeDesign();
+        }
+    } catch (e) {
+        console.error("Square Lattice Init Error", e);
+    }
 });

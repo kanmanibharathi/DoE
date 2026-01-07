@@ -2,13 +2,15 @@
  * Latin Square Design Logic
  * Implements randomized Latin Square generation for NxN grids.
  */
+'use strict';
 
 class LatinSquareGenerator {
     constructor(t, reps, planter = 'serpentine', seed = null) {
         this.t = parseInt(t); // Max 10
         this.reps = parseInt(reps);
         this.planter = planter;
-        this.seed = seed || Math.floor(Math.random() * 1000000);
+        // Correct seed handling
+        this.seed = (seed !== null && seed !== undefined && !isNaN(seed)) ? seed : Math.floor(Math.random() * 1000000);
         this.fieldBook = [];
         this.squares = []; // Array of 2D matrices [rep][row][col]
     }
@@ -93,147 +95,185 @@ class LatinSquareGenerator {
 
 // UI Controller
 document.addEventListener('DOMContentLoaded', () => {
-    const generateBtn = document.getElementById('generate-btn');
-    const resultsSection = document.getElementById('results');
-    const fbTableBody = document.querySelector('#fb-table tbody');
-    const lsContainer = document.getElementById('ls-container');
-    const squarePillsContainer = document.getElementById('square-pills-container');
-    const tabs = document.querySelectorAll('.tab');
+    try {
+        const generateBtn = document.getElementById('generate-btn');
+        const resultsSection = document.getElementById('results');
+        const fbTableBody = document.querySelector('#fb-table tbody');
+        const lsContainer = document.getElementById('ls-container');
+        const squarePillsContainer = document.getElementById('square-pills-container');
+        const tabs = document.querySelectorAll('.tab');
 
-    let currentGenerator = null;
-    let selectedSqIdx = 0;
+        if (!generateBtn) return;
 
-    generateBtn.addEventListener('click', () => {
-        const t = document.getElementById('t-input').value;
-        const reps = document.getElementById('reps-input').value;
-        const planter = document.getElementById('planter-input').value;
-        const plotStart = parseInt(document.getElementById('plot-start').value);
-        const seedInput = document.getElementById('seed-input').value;
+        let currentGenerator = null;
+        let selectedSqIdx = 0;
 
-        if (t > 10) { alert('Max 10 treatments allowed for Latin Square.'); return; }
+        generateBtn.addEventListener('click', () => {
+            try {
+                const tInput = document.getElementById('t-input');
+                const repsInput = document.getElementById('reps-input');
+                const planterInput = document.getElementById('planter-input');
+                const plotStartInput = document.getElementById('plot-start');
+                const seedInput = document.getElementById('seed-input');
 
-        const seed = seedInput ? parseInt(seedInput) : Math.floor(Math.random() * 1000000);
+                const t = parseInt(tInput.value);
+                const reps = parseInt(repsInput.value);
+                const planter = planterInput ? planterInput.value : 'serpentine';
+                const plotStart = parseInt(plotStartInput.value);
 
-        try {
-            const generator = new LatinSquareGenerator(t, reps, planter, seed);
-            generator.generate(plotStart);
-            currentGenerator = generator;
+                const rawSeed = seedInput.value;
+                const seed = (rawSeed !== "" && rawSeed !== null) ? parseInt(rawSeed) : Math.floor(Math.random() * 1000000);
 
-            renderPills(reps);
-            showSquare(0);
-            renderTable(generator.fieldBook);
+                if (t > 10) { alert('Max 10 treatments allowed for Latin Square.'); return; }
 
-            resultsSection.style.display = 'block';
-            resultsSection.scrollIntoView({ behavior: 'smooth' });
+                const generator = new LatinSquareGenerator(t, reps, planter, seed);
+                generator.generate(plotStart);
+                currentGenerator = generator;
 
-        } catch (e) { alert(e.message); }
-    });
+                renderPills(reps);
+                showSquare(0);
+                renderTable(generator.fieldBook);
 
-    function renderPills(count) {
-        squarePillsContainer.innerHTML = '';
-        for (let i = 0; i < count; i++) {
-            const pill = document.createElement('div');
-            pill.className = `pill ${i === 0 ? 'active' : ''}`;
-            pill.textContent = `Square ${i + 1}`;
-            pill.onclick = () => {
-                document.querySelectorAll('.pill').forEach(p => p.classList.remove('active'));
-                pill.classList.add('active');
-                showSquare(i);
-            };
-            squarePillsContainer.appendChild(pill);
-        }
-    }
+                if (resultsSection) {
+                    resultsSection.style.display = 'block';
+                    resultsSection.scrollIntoView({ behavior: 'smooth' });
+                }
 
-    function showSquare(idx) {
-        selectedSqIdx = idx;
-        const square = currentGenerator.squares[idx];
-        const t = currentGenerator.t;
-        const fb = currentGenerator.fieldBook.filter(d => d.square === idx + 1);
+            } catch (e) {
+                console.error(e);
+                alert(e.message);
+            }
+        });
 
-        lsContainer.innerHTML = '';
-        lsContainer.style.gridTemplateColumns = `repeat(${t}, 75px)`;
-
-        // We use the field book to get plots for the specific row/col
-        for (let r = 0; r < t; r++) {
-            for (let c = 0; c < t; c++) {
-                const trt = square[r][c];
-                const entry = fb.find(d => d.row === r + 1 && d.column === c + 1);
-
-                const cell = document.createElement('div');
-                cell.className = `ls-cell treatment-color-${trt}`;
-                cell.innerHTML = `
-                    <div class="p-num">P${entry.plot}</div>
-                    T${trt}
-                    <div class="row-col">R${r + 1} C${c + 1}</div>
-                `;
-                cell.title = `Row ${r + 1}, Col ${c + 1}, Plot ${entry.plot}`;
-                lsContainer.appendChild(cell);
+        function renderPills(count) {
+            if (!squarePillsContainer) return;
+            squarePillsContainer.innerHTML = '';
+            for (let i = 0; i < count; i++) {
+                const pill = document.createElement('div');
+                pill.className = `pill ${i === 0 ? 'active' : ''}`;
+                pill.textContent = `Square ${i + 1}`;
+                pill.onclick = () => {
+                    document.querySelectorAll('.pill').forEach(p => p.classList.remove('active'));
+                    pill.classList.add('active');
+                    showSquare(i);
+                };
+                squarePillsContainer.appendChild(pill);
             }
         }
+
+        function showSquare(idx) {
+            if (!lsContainer || !currentGenerator) return;
+            selectedSqIdx = idx;
+            const square = currentGenerator.squares[idx];
+            const t = currentGenerator.t;
+            const fb = currentGenerator.fieldBook.filter(d => d.square === idx + 1);
+
+            lsContainer.innerHTML = '';
+            lsContainer.style.gridTemplateColumns = `repeat(${t}, 75px)`;
+
+            // We use the field book to get plots for the specific row/col
+            for (let r = 0; r < t; r++) {
+                for (let c = 0; c < t; c++) {
+                    const trt = square[r][c];
+                    const entry = fb.find(d => d.row === r + 1 && d.column === c + 1);
+                    if (!entry) continue;
+
+                    const cell = document.createElement('div');
+                    cell.className = `ls-cell treatment-color-${trt}`;
+                    cell.innerHTML = `
+                        <div class="p-num">P${entry.plot}</div>
+                        T${trt}
+                        <div class="row-col">R${r + 1} C${c + 1}</div>
+                    `;
+                    cell.title = `Row ${r + 1}, Col ${c + 1}, Plot ${entry.plot}`;
+                    lsContainer.appendChild(cell);
+                }
+            }
+        }
+
+        function renderTable(data) {
+            if (!fbTableBody) return;
+            fbTableBody.innerHTML = '';
+            data.forEach(row => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${row.id}</td>
+                    <td style="font-weight: 700;">${row.plot}</td>
+                    <td>${row.square}</td>
+                    <td>${row.row}</td>
+                    <td>${row.column}</td>
+                    <td><span class="treatment-color-${row.treatment}" style="padding: 2px 8px; border-radius: 4px;">${row.treatmentLabel}</span></td>
+                `;
+                fbTableBody.appendChild(tr);
+            });
+        }
+
+        // Tabs
+        if (tabs) {
+            tabs.forEach(tab => {
+                tab.addEventListener('click', () => {
+                    const targetId = tab.getAttribute('data-tab');
+                    const targetContent = document.getElementById(targetId);
+                    if (targetContent) {
+                        tabs.forEach(t => t.classList.remove('active'));
+                        tab.classList.add('active');
+                        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                        targetContent.classList.add('active');
+                    }
+                });
+            });
+        }
+
+        // Exports
+        const exportBtn = document.getElementById('export-csv');
+        if (exportBtn) {
+            exportBtn.addEventListener('click', () => {
+                if (!currentGenerator) return;
+                const headers = ["ID", "Plot", "Square", "Row", "Column", "Treatment"];
+                const csv = [headers.join(",")];
+                currentGenerator.fieldBook.forEach(row => {
+                    csv.push([row.id, row.plot, row.square, row.row, row.column, row.treatmentLabel].join(","));
+                });
+                const blob = new Blob([csv.join("\n")], { type: 'text/csv' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `latin_square_design_${Date.now()}.csv`;
+                a.click();
+            });
+        }
+
+        const dlPngBtn = document.getElementById('download-png');
+        if (dlPngBtn) {
+            dlPngBtn.addEventListener('click', () => {
+                const container = document.getElementById('ls-container');
+                if (!container || typeof html2canvas !== 'function') {
+                    alert('Cannot export image.');
+                    return;
+                }
+                const oldText = dlPngBtn.innerHTML;
+                dlPngBtn.innerHTML = "Processing...";
+                dlPngBtn.disabled = true;
+
+                html2canvas(container, {
+                    backgroundColor: null,
+                    scale: 3
+                }).then(canvas => {
+                    const a = document.createElement('a');
+                    a.download = `latin_square_rep${selectedSqIdx + 1}.png`;
+                    a.href = canvas.toDataURL();
+                    a.click();
+                    dlPngBtn.innerHTML = oldText;
+                    dlPngBtn.disabled = false;
+                }).catch(e => {
+                    console.error(e);
+                    alert("Export failed");
+                    dlPngBtn.innerHTML = oldText;
+                    dlPngBtn.disabled = false;
+                });
+            });
+        }
+    } catch (err) {
+        console.error("Latin App Init Error", err);
     }
-
-    function renderTable(data) {
-        fbTableBody.innerHTML = '';
-        data.forEach(row => {
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td>${row.id}</td>
-                <td style="font-weight: 700;">${row.plot}</td>
-                <td>${row.square}</td>
-                <td>${row.row}</td>
-                <td>${row.column}</td>
-                <td><span class="treatment-color-${row.treatment}" style="padding: 2px 8px; border-radius: 4px;">${row.treatmentLabel}</span></td>
-            `;
-            fbTableBody.appendChild(tr);
-        });
-    }
-
-    // Tabs
-    tabs.forEach(tab => {
-        tab.addEventListener('click', () => {
-            tabs.forEach(t => t.classList.remove('active'));
-            tab.classList.add('active');
-            const target = tab.getAttribute('data-tab');
-            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-            document.getElementById(target).classList.add('active');
-        });
-    });
-
-    // Exports
-    document.getElementById('export-csv').addEventListener('click', () => {
-        const headers = ["ID", "Plot", "Square", "Row", "Column", "Treatment"];
-        const csv = [headers.join(",")];
-        currentGenerator.fieldBook.forEach(row => {
-            csv.push([row.id, row.plot, row.square, row.row, row.column, row.treatmentLabel].join(","));
-        });
-        const blob = new Blob([csv.join("\n")], { type: 'text/csv' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `latin_square_design_${Date.now()}.csv`;
-        a.click();
-    });
-
-    document.getElementById('download-png').addEventListener('click', () => {
-        const container = document.getElementById('ls-container');
-        html2canvas(container, {
-            backgroundColor: null,
-            scale: 3
-        }).then(canvas => {
-            const a = document.createElement('a');
-            a.download = `latin_square_rep${selectedSqIdx + 1}.png`;
-            a.href = canvas.toDataURL();
-            a.click();
-        });
-    });
-
-//     document.getElementById('copy-clipboard').addEventListener('click', () => {
-//         const text = document.getElementById('fb-table').innerText;
-//         navigator.clipboard.writeText(text).then(() => {
-//             const btn = document.getElementById('copy-clipboard');
-//             const old = btn.innerHTML;
-//             btn.innerHTML = '<i class="fas fa-check"></i> Copied!';
-//             setTimeout(() => btn.innerHTML = old, 2000);
-//         });
-    });
 });
