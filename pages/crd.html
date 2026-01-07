@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CRD Design Generator | Research Hub</title>
+    <meta name="description"
+        content="Generate randomized Completely Randomized Designs (CRD) for research and agricultural experiments.">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- html2canvas for Export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+                :root {
+            --primary: #00a651;
+            --secondary: #008c44;
+            --accent: #2ecc71;
+            --bg: #1f2122; /* Darker background from reference implied theme */
+            --card-bg: rgba(255, 255, 255, 0.05);
+            --text: #ffffff;
+            --text-dim: #cccccc;
+            --border: rgba(255, 255, 255, 0.1);
+            --gradient: linear-gradient(135deg, #00a651 0%, #00d466 100%);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg);
+            background-image:
+                radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.15) 0, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(217, 70, 239, 0.15) 0, transparent 50%);
+            color: var(--text);
+            min-height: 100vh;
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 3rem;
+            animation: fadeInDown 0.8s ease-out;
+        }
+
+        h1 {
+            font-size: 3rem;
+            font-weight: 800;
+            background: var(--gradient);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 0.5rem;
+        }
+
+        p.subtitle {
+            color: var(--text-dim);
+            font-size: 1.1rem;
+        }
+
+        .main-grid {
+            display: grid;
+            grid-template-columns: 350px 1fr;
+            gap: 2rem;
+            align-items: start;
+        }
+
+        @media (max-width: 968px) {
+            .main-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .card {
+            background: var(--card-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--border);
+            border-radius: 24px;
+            padding: 2rem;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .card:hover {
+            box-shadow: 0 15px 40px rgba(99, 102, 241, 0.2);
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            color: var(--text);
+            font-size: 0.9rem;
+        }
+
+        input,
+        select,
+        textarea {
+            width: 100%;
+            padding: 0.8rem 1rem;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            color: white;
+            font-size: 1rem;
+            outline: none;
+            transition: border-color 0.3s ease;
+        }
+
+        input:focus,
+        textarea:focus {
+            border-color: var(--primary);
+        }
+
+        .btn {
+            width: 100%;
+            padding: 1rem;
+            border: none;
+            border-radius: 12px;
+            background: var(--gradient);
+            color: white;
+            font-weight: 700;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: opacity 0.3s ease, transform 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 1rem;
+        }
+
+        .btn:hover {
+            opacity: 0.9;
+            transform: translateY(-2px);
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.1);
+            margin-top: 0.5rem;
+        }
+
+        .results-section {
+            display: none;
+            animation: fadeIn 0.5s ease-out;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+            background: rgba(255, 255, 255, 0.05);
+            padding: 0.5rem;
+            border-radius: 15px;
+        }
+
+        .tab {
+            flex: 1;
+            padding: 0.8rem;
+            text-align: center;
+            cursor: pointer;
+            border-radius: 10px;
+            transition: background 0.3s ease;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        .tab.active {
+            background: var(--primary);
+            color: white;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .table-container {
+            overflow-x: auto;
+            border-radius: 15px;
+            border: 1px solid var(--border);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        th,
+        td {
+            padding: 1rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+
+        th {
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-dim);
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.8rem;
+            letter-spacing: 1px;
+        }
+
+        .field-map {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            justify-content: center;
+            background: rgba(30, 41, 59, 0.5);
+            padding: 2rem;
+            border-radius: 20px;
+            border: 1px solid var(--border);
+        }
+
+        .plot {
+            width: 80px;
+            height: 80px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: rgba(99, 102, 241, 0.2);
+            border: 1px solid var(--primary);
+            border-radius: 12px;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .plot:hover {
+            transform: scale(1.1);
+            background: var(--primary);
+            z-index: 10;
+        }
+
+        .plot-num {
+            font-size: 0.7rem;
+            opacity: 0.7;
+            margin-bottom: 4px;
+        }
+
+        .plot-trt {
+            font-size: 1rem;
+            font-weight: 800;
+        }
+
+        .plot-rep {
+            font-size: 0.6rem;
+            opacity: 0.6;
+            margin-top: 2px;
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .info-item {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 1.2rem;
+            border-radius: 16px;
+            border-left: 4px solid var(--primary);
+        }
+
+        .info-label {
+            font-size: 0.8rem;
+            color: var(--text-dim);
+            margin-bottom: 0.3rem;
+        }
+
+        .info-value {
+            font-size: 1.2rem;
+            font-weight: 700;
+        }
+
+        @keyframes fadeInDown {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
+            }
+        }
+
+        .tooltip {
+            position: relative;
+            display: inline-block;
+            cursor: help;
+            margin-left: 5px;
+            color: var(--text-dim);
+        }
+
+        .tooltip .tooltiptext {
+            visibility: hidden;
+            width: 200px;
+            background-color: #334155;
+            color: #fff;
+            text-align: center;
+            border-radius: 6px;
+            padding: 8px;
+            position: absolute;
+            z-index: 1;
+            bottom: 125%;
+            left: 50%;
+            margin-left: -100px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            font-size: 0.75rem;
+            font-weight: 400;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .tooltip:hover .tooltiptext {
+            visibility: visible;
+            opacity: 1;
+        }
+
+        /* Responsive grid for map */
+        .map-grid-wrapper {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+            gap: 12px;
+            width: 100%;
+        }
+            /* Navigation Group Styles */
+        .category-btn {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border);
+            color: var(--text-dim);
+            padding: 0.8rem 1.5rem;
+            border-radius: 50px; /* Pill shape */
+            cursor: pointer;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.3s ease;
+        }
+
+        .category-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+            transform: translateY(-2px);
+            color: var(--text);
+        }
+
+        .category-btn.active {
+            background: var(--gradient); /* Active gradient */
+            color: white;
+            border-color: transparent;
+            box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);
+        }
+
+        .submenu-container {
+            min-height: 50px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .nav-group {
+            display: none;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 1.5rem;
+            animation: fadeIn 0.4s ease;
+        }
+
+        .nav-group.active {
+            display: flex;
+        }
+
+        .nav-link {
+            color: var(--text-dim);
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.3s ease;
+            font-size: 0.95rem;
+            position: relative;
+        }
+
+        .nav-link:hover, .nav-link.active {
+            color: var(--text);
+        }
+        
+        .nav-link.active::after {
+            content: '';
+            position: absolute;
+            bottom: -5px;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            background: var(--primary);
+            border-radius: 2px;
+        }
+            /* Dropdown Options Styling */
+        option {
+            background-color: #333333;
+            color: #ffffff;
+            padding: 10px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="container">
+                        <div class="nav-wrapper" style="margin-bottom: 3rem; border-bottom: 1px solid var(--border); padding-bottom: 1rem;">
+            <!-- Categories -->
+            <div class="category-pills" style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; margin-bottom: 1.5rem;">
+                <button class="category-btn" data-category="lattice">
+                    <i class="fas fa-th"></i> Lattice Designs
+                </button>
+                <button class="category-btn" data-category="basic">
+                    <i class="fas fa-shapes"></i> Basic Designs
+                </button>
+                <button class="category-btn" data-category="factorial">
+                    <i class="fas fa-layer-group"></i> Factorial Designs
+                </button>
+                <button class="category-btn" data-category="specialized">
+                    <i class="fas fa-dna"></i> Specialized
+                </button>
+            </div>
+
+            <!-- Submenu Links -->
+            <div class="submenu-container">
+                <!-- Lattice Designs -->
+                <div class="nav-group" id="group-lattice">
+                    <a href="../index.html" class="nav-link">Alpha Lattice</a>
+                    <a href="squarelattice.html" class="nav-link">Square Lattice</a>
+                    <a href="rectangular.html" class="nav-link">Rectangular</a>
+                    <a href="rowcolumn.html" class="nav-link">Row-Column</a>
+                    <a href="ibd.html" class="nav-link">IBD</a>
+                    <a href="sparse.html" class="nav-link">Sparse</a>
+                </div>
+
+                <!-- Basic Designs -->
+                <div class="nav-group" id="group-basic">
+                     <a href="crd.html" class="nav-link">CRD</a>
+                     <a href="rcbd.html" class="nav-link">RCBD</a>
+                     <a href="latin.html" class="nav-link">Latin Square</a>
+                     <a href="arcbd.html" class="nav-link">Augmented RCBD</a>
+                </div>
+
+                <!-- Factorial Designs -->
+                <div class="nav-group" id="group-factorial">
+                     <a href="factorial.html" class="nav-link">Factorial</a>
+                     <a href="splitplot.html" class="nav-link">Split Plot</a>
+                     <a href="splitsplitplot.html" class="nav-link">Split-Split Plot</a>
+                     <a href="stripplot.html" class="nav-link">Strip Plot</a>
+                     <a href="splitrep.html" class="nav-link">Split Population</a>
+                </div>
+
+                <!-- Specialized Designs -->
+                <div class="nav-group" id="group-specialized">
+                     <a href="diagonal.html" class="nav-link">Diagonal</a>
+                     <a href="diagonal-multiple.html" class="nav-link">Multiple Diagonal</a>
+                     <a href="optimized.html" class="nav-link">Optimized Un-rep</a>
+                     <a href="prep.html" class="nav-link">Spatial P-Rep</a>
+                </div>
+            </div>
+        </div>
+
+        <script>
+            // Simple Tab Logic for Navigation
+            document.querySelectorAll('.category-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('.category-btn').forEach(b => b.classList.remove('active'));
+                    document.querySelectorAll('.nav-group').forEach(g => g.classList.remove('active'));
+                    btn.classList.add('active');
+                    const category = btn.getAttribute('data-category');
+                    document.getElementById(`group-${category}`).classList.add('active');
+                });
+            });
+
+            // Auto-highlight current page
+            (function(){
+                const currentPath = window.location.pathname.split('/').pop();
+                const links = document.querySelectorAll('.nav-link');
+                let activeFound = false;
+                links.forEach(link => {
+                    const href = link.getAttribute('href');
+                    if (href === currentPath) {
+                        link.classList.add('active');
+                        const group = link.closest('.nav-group');
+                        if(group){
+                            group.classList.add('active');
+                            const cat = group.id.replace('group-', '');
+                            const btn = document.querySelector(`.category-btn[data-category='${cat}']`);
+                            if(btn) btn.classList.add('active');
+                            activeFound = true;
+                        }
+                    }
+                });
+                
+                if (!activeFound) {
+                     const defaultGroup = document.getElementById('group-lattice');
+                     if(defaultGroup && !document.querySelector('.nav-group.active')) {
+                         defaultGroup.classList.add('active');
+                         document.querySelector('.category-btn[data-category="lattice"]').classList.add('active');
+                     }
+                }
+            })();
+        </script>
+
+        <header>
+            <h1><i class="fas fa-random"></i> CRD Design</h1>
+            <p class="subtitle">Completely Randomized Design Generator for Research Excellence</p>
+        </header>
+
+        <div class="main-grid">
+            <aside class="card">
+                <h2 style="margin-bottom: 1.5rem;"><i class="fas fa-sliders-h"></i> Parameters</h2>
+
+                <div class="form-group">
+                    <label>Total Treatments (t) <span class="tooltip"><i class="fas fa-info-circle"></i><span
+                                class="tooltiptext">Number of varieties or experimental groups.</span></span></label>
+                    <input type="number" id="t-input" value="10" min="2" step="1">
+                </div>
+
+                <div class="form-group">
+                    <label>Replicates per Treatment <span class="tooltip"><i class="fas fa-info-circle"></i><span
+                                class="tooltiptext">Number of times each treatment is repeated.</span></span></label>
+                    <input type="number" id="reps-input" value="5" min="2" step="1">
+                </div>
+
+                <div class="form-group">
+                    <label>Plot Order Layout</label>
+                    <select id="layout-input">
+                        <option value="serpentine">Serpentine</option>
+                        <option value="cartesian">Cartesian</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Start Plot Number</label>
+                    <input type="number" id="plot-input" value="101" step="1">
+                </div>
+
+                <div class="form-group">
+                    <label>Seed (Randomness control)</label>
+                    <input type="number" id="seed-input" placeholder="Randomly generated">
+                </div>
+
+                <div class="form-group">
+                    <label>Treatment Names (One per line)</label>
+                    <textarea id="trt-names" placeholder="e.g. Variety A&#10;Variety B" rows="5"></textarea>
+                </div>
+
+                <button class="btn" id="generate-btn">
+                    <i class="fas fa-magic"></i> Generate Design
+                </button>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+                    <button class="btn btn-secondary" id="simulate-btn" style="display: none;">
+                        <i class="fas fa-vial"></i> Simulate
+                    </button>
+                    <button class="btn btn-secondary" id="export-btn">
+                        <i class="fas fa-file-csv"></i> Export
+                    </button>
+                </div>
+            </aside>
+
+            <main class="results-section" id="results">
+                <div class="info-grid">
+                    <div class="info-item">
+                        <div class="info-label">Total Units (N)</div>
+                        <div class="info-value" id="info-total">-</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Seed Used</div>
+                        <div class="info-value" id="info-seed">-</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Design Type</div>
+                        <div class="info-value">CRD</div>
+                    </div>
+                </div>
+
+                <div class="tabs">
+                    <div class="tab active" data-tab="field-book">Field Book</div>
+                    <div class="tab" data-tab="field-map">Field Layout Map</div>
+                </div>
+
+                <div id="field-book" class="tab-content active">
+                    <div class="table-container">
+                        <table id="field-book-table">
+                            <thead>
+                                <tr>
+                                    <th>Plot</th>
+                                    <th>Location</th>
+                                    <th>Rep-ID</th>
+                                    <th>Treatment ID</th>
+                                    <th>Treatment Name</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Rows injected here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div id="field-map" class="tab-content">
+                    <div style="margin-bottom: 1.5rem; text-align: right;">
+                        <button class="btn btn-secondary" id="download-map-btn"
+                            style="width: auto; display: inline-flex; padding: 0.6rem 1.2rem;">
+                            <i class="fas fa-image"></i> Download Publication Quality Map (PNG)
+                        </button>
+                    </div>
+                    <div class="field-map" id="map-container">
+                        <!-- Map grid injected here -->
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <script src="../js/crd-app.js"></script>
+</body>
+
+</html>
