@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RCBD Design | Research Hub</title>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- html2canvas for Export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+                :root {
+            --primary: #00a651;
+            --secondary: #008c44;
+            --accent: #2ecc71;
+            --bg: #1f2122; /* Darker background from reference implied theme */
+            --card-bg: rgba(255, 255, 255, 0.05);
+            --text: #ffffff;
+            --text-dim: #cccccc;
+            --border: rgba(255, 255, 255, 0.1);
+            --gradient: linear-gradient(135deg, #00a651 0%, #00d466 100%);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg);
+            background-image:
+                radial-gradient(at 0% 0%, rgba(245, 158, 11, 0.1) 0, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(217, 119, 6, 0.1) 0, transparent 50%);
+            color: var(--text);
+            min-height: 100vh;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        nav {
+            display: flex;
+            justify-content: center;
+            gap: 1rem;
+            margin-bottom: 2rem;
+            padding: 1rem;
+            border-bottom: 1px solid var(--border);
+            overflow-x: auto;
+            scrollbar-width: none;
+        }
+
+        nav::-webkit-scrollbar {
+            display: none;
+        }
+
+        nav a {
+            color: var(--text-dim);
+            text-decoration: none;
+            font-weight: 600;
+            transition: color 0.3s;
+            padding: 5px 10px;
+            border-radius: 8px;
+            white-space: nowrap;
+            font-size: 0.9rem;
+        }
+
+        nav a:hover {
+            color: var(--text);
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        nav a.active {
+            color: var(--text);
+            border-bottom: 2px solid var(--primary);
+            background: rgba(245, 158, 11, 0.1);
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 3rem;
+        }
+
+        h1 {
+            font-size: 3rem;
+            font-weight: 800;
+            background: var(--gradient);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 0.5rem;
+        }
+
+        .main-grid {
+            display: grid;
+            grid-template-columns: 400px 1fr;
+            gap: 2rem;
+            align-items: start;
+        }
+
+        @media (max-width: 1100px) {
+            .main-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .card {
+            background: var(--card-bg);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--border);
+            border-radius: 24px;
+            padding: 2rem;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+
+        .form-section {
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .form-section h3 {
+            font-size: 0.9rem;
+            margin-bottom: 1rem;
+            color: var(--primary);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .form-group {
+            margin-bottom: 1.2rem;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            font-size: 0.85rem;
+        }
+
+        input,
+        select,
+        textarea {
+            width: 100%;
+            padding: 0.7rem 0.9rem;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            color: white;
+            font-size: 0.95rem;
+            outline: none;
+            transition: 0.3s;
+        }
+
+        input:focus {
+            border-color: var(--primary);
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .btn {
+            width: 100%;
+            padding: 1rem;
+            border: none;
+            border-radius: 12px;
+            background: var(--gradient);
+            color: white;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(245, 158, 11, 0.4);
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.1);
+            margin-top: 0.5rem;
+        }
+
+        .results-section {
+            display: none;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+            background: rgba(255, 255, 255, 0.05);
+            padding: 0.4rem;
+            border-radius: 15px;
+        }
+
+        .tab {
+            flex: 1;
+            padding: 0.7rem;
+            text-align: center;
+            cursor: pointer;
+            border-radius: 10px;
+            font-weight: 600;
+            font-size: 0.9rem;
+            transition: 0.3s;
+        }
+
+        .tab.active {
+            background: var(--primary);
+            color: white;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .visual-container {
+            background: #1e293b;
+            padding: 2rem;
+            border-radius: 24px;
+            border: 1px solid var(--border);
+            overflow-x: auto;
+        }
+
+        /* Field Map Styling */
+        .block-wrapper {
+            margin-bottom: 2rem;
+            padding: 1.5rem;
+            background: rgba(255, 255, 255, 0.02);
+            border-radius: 16px;
+            border-left: 4px solid var(--primary);
+        }
+
+        .block-title {
+            font-weight: 800;
+            font-size: 0.9rem;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .grid-row {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+
+        .plot-unit {
+            width: 80px;
+            height: 80px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            position: relative;
+            transition: 0.2s;
+            cursor: default;
+        }
+
+        .plot-unit:hover {
+            transform: translateY(-5px);
+            border-color: var(--primary);
+            background: rgba(245, 158, 11, 0.1);
+        }
+
+        .p-num {
+            position: absolute;
+            top: 5px;
+            left: 8px;
+            font-size: 0.6rem;
+            opacity: 0.5;
+            font-weight: 800;
+        }
+
+        .t-id {
+            font-size: 1.1rem;
+            font-weight: 800;
+            color: var(--text);
+        }
+
+        .t-name {
+            font-size: 0.6rem;
+            color: var(--text-dim);
+            text-align: center;
+            max-width: 90%;
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+        }
+
+        .table-container {
+            border-radius: 16px;
+            overflow: hidden;
+            border: 1px solid var(--border);
+            margin-top: 1rem;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: var(--card-bg);
+        }
+
+        th,
+        td {
+            padding: 1rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+            font-size: 0.9rem;
+        }
+
+        th {
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-dim);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        tbody tr:hover {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .stat-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: rgba(255, 255, 255, 0.03);
+            padding: 1.5rem;
+            border-radius: 20px;
+            border: 1px solid var(--border);
+        }
+
+        .stat-label {
+            font-size: 0.75rem;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            font-weight: 600;
+        }
+
+        .stat-val {
+            font-size: 1.5rem;
+            font-weight: 800;
+            color: var(--primary);
+        }
+
+        #location-pills {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 1.5rem;
+            overflow-x: auto;
+            padding-bottom: 5px;
+        }
+
+        .loc-pill {
+            padding: 8px 16px;
+            border-radius: 20px;
+            background: rgba(255, 255, 255, 0.05);
+            cursor: pointer;
+            font-size: 0.85rem;
+            font-weight: 600;
+            transition: 0.3s;
+            white-space: nowrap;
+        }
+
+        .loc-pill.active {
+            background: var(--primary);
+            color: white;
+        }
+            /* Navigation Group Styles */
+        .category-btn {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border);
+            color: var(--text-dim);
+            padding: 0.8rem 1.5rem;
+            border-radius: 50px; /* Pill shape */
+            cursor: pointer;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.3s ease;
+        }
+
+        .category-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+            transform: translateY(-2px);
+            color: var(--text);
+        }
+
+        .category-btn.active {
+            background: var(--gradient); /* Active gradient */
+            color: white;
+            border-color: transparent;
+            box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);
+        }
+
+        .submenu-container {
+            min-height: 50px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .nav-group {
+            display: none;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 1.5rem;
+            animation: fadeIn 0.4s ease;
+        }
+
+        .nav-group.active {
+            display: flex;
+        }
+
+        .nav-link {
+            color: var(--text-dim);
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.3s ease;
+            font-size: 0.95rem;
+            position: relative;
+        }
+
+        .nav-link:hover, .nav-link.active {
+            color: var(--text);
+        }
+        
+        .nav-link.active::after {
+            content: '';
+            position: absolute;
+            bottom: -5px;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            background: var(--primary);
+            border-radius: 2px;
+        }
+            /* Dropdown Options Styling */
+        option {
+            background-color: #333333;
+            color: #ffffff;
+            padding: 10px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="container">
+                        <div class="nav-wrapper" style="margin-bottom: 3rem; border-bottom: 1px solid var(--border); padding-bottom: 1rem;">
+            <!-- Categories -->
+            <div class="category-pills" style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; margin-bottom: 1.5rem;">
+                <button class="category-btn" data-category="lattice">
+                    <i class="fas fa-th"></i> Lattice Designs
+                </button>
+                <button class="category-btn" data-category="basic">
+                    <i class="fas fa-shapes"></i> Basic Designs
+                </button>
+                <button class="category-btn" data-category="factorial">
+                    <i class="fas fa-layer-group"></i> Factorial Designs
+                </button>
+                <button class="category-btn" data-category="specialized">
+                    <i class="fas fa-dna"></i> Specialized
+                </button>
+            </div>
+
+            <!-- Submenu Links -->
+            <div class="submenu-container">
+                <!-- Lattice Designs -->
+                <div class="nav-group" id="group-lattice">
+                    <a href="../index.html" class="nav-link">Alpha Lattice</a>
+                    <a href="squarelattice.html" class="nav-link">Square Lattice</a>
+                    <a href="rectangular.html" class="nav-link">Rectangular</a>
+                    <a href="rowcolumn.html" class="nav-link">Row-Column</a>
+                    <a href="ibd.html" class="nav-link">IBD</a>
+                    <a href="sparse.html" class="nav-link">Sparse</a>
+                </div>
+
+                <!-- Basic Designs -->
+                <div class="nav-group" id="group-basic">
+                     <a href="crd.html" class="nav-link">CRD</a>
+                     <a href="rcbd.html" class="nav-link">RCBD</a>
+                     <a href="latin.html" class="nav-link">Latin Square</a>
+                     <a href="arcbd.html" class="nav-link">Augmented RCBD</a>
+                </div>
+
+                <!-- Factorial Designs -->
+                <div class="nav-group" id="group-factorial">
+                     <a href="factorial.html" class="nav-link">Factorial</a>
+                     <a href="splitplot.html" class="nav-link">Split Plot</a>
+                     <a href="splitsplitplot.html" class="nav-link">Split-Split Plot</a>
+                     <a href="stripplot.html" class="nav-link">Strip Plot</a>
+                     <a href="splitrep.html" class="nav-link">Split Population</a>
+                </div>
+
+                <!-- Specialized Designs -->
+                <div class="nav-group" id="group-specialized">
+                     <a href="diagonal.html" class="nav-link">Diagonal</a>
+                     <a href="diagonal-multiple.html" class="nav-link">Multiple Diagonal</a>
+                     <a href="optimized.html" class="nav-link">Optimized Un-rep</a>
+                     <a href="prep.html" class="nav-link">Spatial P-Rep</a>
+                </div>
+            </div>
+        </div>
+
+        <script>
+            // Simple Tab Logic for Navigation
+            document.querySelectorAll('.category-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('.category-btn').forEach(b => b.classList.remove('active'));
+                    document.querySelectorAll('.nav-group').forEach(g => g.classList.remove('active'));
+                    btn.classList.add('active');
+                    const category = btn.getAttribute('data-category');
+                    document.getElementById(`group-${category}`).classList.add('active');
+                });
+            });
+
+            // Auto-highlight current page
+            (function(){
+                const currentPath = window.location.pathname.split('/').pop();
+                const links = document.querySelectorAll('.nav-link');
+                let activeFound = false;
+                links.forEach(link => {
+                    const href = link.getAttribute('href');
+                    if (href === currentPath) {
+                        link.classList.add('active');
+                        const group = link.closest('.nav-group');
+                        if(group){
+                            group.classList.add('active');
+                            const cat = group.id.replace('group-', '');
+                            const btn = document.querySelector(`.category-btn[data-category='${cat}']`);
+                            if(btn) btn.classList.add('active');
+                            activeFound = true;
+                        }
+                    }
+                });
+                
+                if (!activeFound) {
+                     const defaultGroup = document.getElementById('group-lattice');
+                     if(defaultGroup && !document.querySelector('.nav-group.active')) {
+                         defaultGroup.classList.add('active');
+                         document.querySelector('.category-btn[data-category="lattice"]').classList.add('active');
+                     }
+                }
+            })();
+        </script>
+
+        <header>
+            <h1><i class="fas fa-th-large"></i> Randomized Complete Block</h1>
+            <p style="color: var(--text-dim);">Rigorous treatment distribution across replicated blocks</p>
+        </header>
+
+        <div class="main-grid">
+            <aside class="card">
+                <div class="form-section">
+                    <h3><i class="fas fa-flask"></i> Treatments</h3>
+                    <div class="form-group">
+                        <label>Treatment List (Comma or Newline)</label>
+                        <textarea id="treatments-input" rows="4" placeholder="T1, T2, T3, T4..."></textarea>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <h3><i class="fas fa-layer-group"></i> Design Params</h3>
+                    <div class="form-group">
+                        <label>Replicates (Blocks)</label>
+                        <input type="number" id="reps-input" value="3" min="2">
+                    </div>
+                    <div class="form-group">
+                        <label>Number of Locations</label>
+                        <input type="number" id="locations-input" value="1" min="1">
+                    </div>
+                </div>
+
+                <div class="form-section" style="border: none;">
+                    <h3><i class="fas fa-cog"></i> Advanced</h3>
+                    <div class="form-group">
+                        <label>Plot Movement</label>
+                        <select id="planter-input">
+                            <option value="serpentine">Serpentine (Snake)</option>
+                            <option value="cartesian">Cartesian (Row-by-Row)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Starting Plot #</label>
+                        <input type="number" id="plot-start" value="101">
+                    </div>
+                    <div class="form-group">
+                        <label>Seed</label>
+                        <input type="number" id="seed-input" placeholder="Random">
+                    </div>
+                </div>
+
+                <button class="btn" id="generate-btn"><i class="fas fa-sync-alt"></i> Generate RCBD Design</button>
+            </aside>
+
+            <main class="results-section" id="results">
+                <div class="stat-grid">
+                    <div class="stat-card">
+                        <div class="stat-label">Total Plots</div>
+                        <div class="stat-val" id="stat-plots">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Treatments</div>
+                        <div class="stat-val" id="stat-treats">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Blocks / Loc</div>
+                        <div class="stat-val" id="stat-blocks">0</div>
+                    </div>
+                </div>
+
+                <div id="location-pills"></div>
+
+                <div class="tabs">
+                    <div class="tab active" data-tab="field-map">Visual Field Layout</div>
+                    <div class="tab" data-tab="field-book">Full Field Book</div>
+                </div>
+
+                <div id="field-map" class="tab-content active">
+                    <div
+                        style="margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: center;">
+                        <span style="font-size: 0.8rem; color: var(--text-dim);"><i class="fas fa-info-circle"></i> Each
+                            block contains all treatments in a randomized order.</span>
+                        <button class="btn btn-secondary" id="download-png" style="width: auto; padding: 0.5rem 1rem;">
+                            <i class="fas fa-image"></i> Download PNG
+                        </button>
+                    </div>
+                    <div class="visual-container" id="map-capture">
+                        <div id="layout-view"></div>
+                    </div>
+                </div>
+
+                <div id="field-book" class="tab-content">
+                    <div style="text-align: right; margin-bottom: 1rem;">
+                        <button class="btn btn-secondary" id="download-csv" style="width: auto; padding: 0.5rem 1rem;">
+                            <i class="fas fa-file-csv"></i> Download CSV
+                        </button>
+                    </div>
+                    <div class="table-container">
+                        <table id="fb-table">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Location</th>
+                                    <th>Plot</th>
+                                    <th>Block</th>
+                                    <th>Treatment</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <script src="../js/rcbd-app.js"></script>
+</body>
+
+</html>
